@@ -1,4 +1,5 @@
 // lib/main.dart
+import 'package:flutter/foundation.dart' show kIsWeb;
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:provider/provider.dart';
@@ -13,6 +14,7 @@ import 'screens/pantalla_onboarding.dart';
 import 'screens/pantalla_misiones.dart';
 import 'screens/pantalla_metas.dart';
 import 'screens/pantalla_perfil.dart';
+import 'screens/pantalla_juegos.dart';
 import 'theme.dart';
 
 // ─────────────────────────────────────────────
@@ -70,9 +72,11 @@ tz.TZDateTime _proximaHora(int hora, int minuto) {
 // ─────────────────────────────────────────────
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
-  await SystemChrome.setPreferredOrientations([DeviceOrientation.portraitUp, DeviceOrientation.portraitDown]);
-  SystemChrome.setSystemUIOverlayStyle(const SystemUiOverlayStyle(statusBarColor: Colors.transparent, statusBarIconBrightness: Brightness.light));
-  await inicializarNotificaciones();
+  if (!kIsWeb) {
+    await SystemChrome.setPreferredOrientations([DeviceOrientation.portraitUp, DeviceOrientation.portraitDown]);
+    SystemChrome.setSystemUIOverlayStyle(const SystemUiOverlayStyle(statusBarColor: Colors.transparent, statusBarIconBrightness: Brightness.light));
+    await inicializarNotificaciones();
+  }
 
   runApp(
     ChangeNotifierProvider(
@@ -128,6 +132,7 @@ class _PantallaHomeState extends State<PantallaHome> {
     final paginas = [
       const PantallaDashboard(),
       esDiaEducacion ? const PantallaEducacion() : const PantallaMercado(),
+      const PantallaJuegos(),
       const PantallaMisiones(),
       const PantallaMetas(),
       const PantallaPerfil(),
@@ -148,6 +153,7 @@ class _PantallaHomeState extends State<PantallaHome> {
     final items = [
       _NavItem('🏠', 'Inicio'),
       _NavItem(esDiaEducacion ? '📚' : '🏪', esDiaEducacion ? 'Academia' : 'Tienda'),
+      _NavItem('🎮', 'Juegos'),
       _NavItem('🎯', 'Misiones'),
       _NavItem('🏆', 'Metas'),
       _NavItem(app.avatarActual, 'Perfil'),
