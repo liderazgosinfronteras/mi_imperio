@@ -38,9 +38,15 @@ class FirebaseService {
     _avatarLocal = prefs.getInt('social_avatar') ?? 0;
   }
 
-  static String? get apodo  => kFirebaseEnabled ? _auth.currentUser?.displayName ?? _apodoLocal : _apodoLocal;
+  static String? get apodo {
+    if (!kFirebaseEnabled || !_fbReady) return _apodoLocal;
+    try { return _auth.currentUser?.displayName ?? _apodoLocal; } catch (_) { return _apodoLocal; }
+  }
   static int     get avatar => _avatarLocal;
-  static String? get uid    => kFirebaseEnabled ? _auth.currentUser?.uid : null;
+  static String? get uid {
+    if (!kFirebaseEnabled || !_fbReady) return null;
+    try { return _auth.currentUser?.uid; } catch (_) { return null; }
+  }
   static bool    get tienePerfilCompleto => _apodoLocal != null && _apodoLocal!.isNotEmpty;
 
   // ─── Auth anónima ─────────────────────────────────────────────
