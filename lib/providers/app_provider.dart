@@ -5,6 +5,16 @@ import 'package:flutter/foundation.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'dart:convert';
 import '../models/app_models.dart';
+import '../models/libro_model.dart';
+import '../data/libros_desarrollo_personal.dart';
+import '../data/libros_educacion_financiera.dart';
+import '../data/libros_autoestima.dart';
+import '../data/libros_empoderamiento.dart';
+import '../data/libros_liderazgo.dart';
+import '../data/libros_mlm.dart';
+import '../data/libros_disciplina.dart';
+import '../data/libros_emprendedor.dart';
+import '../data/libros_motivacion.dart';
 import '../utils/sound_player.dart';
 
 class AppProvider extends ChangeNotifier {
@@ -15,6 +25,8 @@ class AppProvider extends ChangeNotifier {
   int _nivelActual = 1;
   String _ultimaFechaRacha = '';
   String _avatarActual = '🦋';
+  // Regeneración de vidas: 1 vida cada 2 horas cuando _vidas < 5
+  String _tiempoVidaRecarga = '';
 
   // ── FINANCIAL ─────────────────────────────
   double _fondoReinversion = 0;
@@ -47,6 +59,24 @@ class AppProvider extends ChangeNotifier {
   // ── AVATARES ──────────────────────────────
   List<AvatarItem> _avatares = crearAvatares();
 
+  // ── BIBLIOTECA ────────────────────────────
+  List<Libro> _libros = [
+    ...crearLibrosDesarrolloPersonal(),
+    ...crearLibrosEducacionFinanciera(),
+    ...crearLibrosAutoestima(),
+    ...crearLibrosEmpoderamiento(),
+    ...crearLibrosLiderazgo(),
+    ...crearLibrosMLM(),
+    ...crearLibrosDisciplina(),
+    ...crearLibrosEmprendedor(),
+    ...crearLibrosMotivacion(),
+  ];
+  Map<String, Set<int>> _capitulosLeidos = {};
+
+  // ── RETO FINANCIERO ───────────────────────────
+  List<RetoModulo>? _retoModulos;
+  Map<int, int> _retoProgreso = {};
+
   // ── ONBOARDING ────────────────────────────
   bool _onboardingCompletado = false;
 
@@ -66,6 +96,19 @@ class AppProvider extends ChangeNotifier {
   String get avatarActual => _avatarActual;
   String get pinPadres => _pinPadres;
 
+  // Tiempo restante hasta la próxima vida regenerada (vacío si vidas == 5)
+  String get tiempoHastaVida {
+    if (_vidas >= 5 || _tiempoVidaRecarga.isEmpty) return '';
+    final ref = DateTime.tryParse(_tiempoVidaRecarga);
+    if (ref == null) return '';
+    final prox = ref.add(const Duration(hours: 2));
+    final diff = prox.difference(DateTime.now());
+    if (diff.isNegative) return 'Disponible';
+    final h = diff.inHours;
+    final m = diff.inMinutes % 60;
+    return h > 0 ? '${h}h ${m}m' : '${m}m';
+  }
+
   double get fondoReinversion => _fondoReinversion;
   double get estiloVida => _estiloVida;
   double get estiloVidaSemana => _estiloVidaSemana;
@@ -81,6 +124,157 @@ class AppProvider extends ChangeNotifier {
   List<AvatarItem> get avatares => _avatares;
   List<PuntoGrafica> get historialGrafica => _historialGrafica;
   bool get onboardingCompletado => _onboardingCompletado;
+
+  // ── BIBLIOTECA ────────────────────────────
+  List<Libro> get libros => _libros;
+  int get librosCompletados => _libros.where((l) => l.estado == EstadoLibro.completado).length;
+
+  Set<int> capitulosLeidos(String libroId) => _capitulosLeidos[libroId] ?? {};
+
+  // ── RETO FINANCIERO ───────────────────────────
+  List<RetoModulo> get retoModulos => _retoModulos ??= _construirRetoModulos();
+  int progresoModulo(int idx) => _retoProgreso[idx] ?? 0;
+  int get totalNivelesRetoCompletados => _retoProgreso.values.fold(0, (a, b) => a + b);
+  bool moduloRetoDesbloqueado(int idx) {
+    if (idx == 0) return true;
+    final prev = retoModulos[idx - 1];
+    return (_retoProgreso[idx - 1] ?? 0) >= prev.preguntas.length;
+  }
+
+  Future<void> marcarCapituloLeido(String libroId, int capituloIndex) async {
+    _capitulosLeidos[libroId] ??= {};
+    _capitulosLeidos[libroId]!.add(capituloIndex);
+    final libro = _libros.firstWhere((l) => l.id == libroId);
+    if (libro.estado == EstadoLibro.disponible) {
+      libro.estado = EstadoLibro.enProgreso;
+    }
+    _registrarActividadHoy();
+    notifyListeners();
+    await _guardarDatos();
+  }
+
+  Future<void> completarLibro(String libroId, int correctas, int total) async {
+    final libro = _libros.firstWhere((l) => l.id == libroId);
+    libro.estado = EstadoLibro.completado;
+    _gemas += libro.gemasRecompensa;
+    if (correctas == total) _gemas += 20;
+    _actualizarMision(TipoMision.lecciones, 1);
+    _registrarActividadHoy();
+    notifyListeners();
+    await _guardarDatos();
+  }
+
+  // ═════════════════════════════════════════
+  //  RETO ENGINE
+  // ═════════════════════════════════════════
+  List<RetoModulo> _construirRetoModulos() {
+    List<Pregunta> pFor(List<CategoriaLibro> cats) => _libros
+        .where((l) => cats.contains(l.categoria))
+        .expand((l) => l.preguntas.map((p) => Pregunta(
+              enunciado: p.enunciado,
+              opciones: p.opciones,
+              respuestaCorrecta: p.respuestaCorrecta,
+              explicacion: p.explicacion,
+            )))
+        .toList();
+    return [
+      RetoModulo(
+        id: 0, nombre: 'Primeros Pasos', emoji: '💰',
+        descripcion: 'Fundamentos del dinero y la riqueza',
+        dificultad: '⭐ Básico', pais: 'Japón', bandera: '🇯🇵',
+        paisEmoji: '🗾🌸⛩️',
+        paisDesc: 'Tierra de disciplina y prosperidad milenaria',
+        preguntas: pFor([CategoriaLibro.educacionFinanciera]),
+      ),
+      RetoModulo(
+        id: 1, nombre: 'Mentalidad del Éxito', emoji: '🧠',
+        descripcion: 'Cómo piensan los que triunfan',
+        dificultad: '⭐⭐ Básico+', pais: 'Islandia', bandera: '🇮🇸',
+        paisEmoji: '🌌❄️🏔️',
+        paisDesc: 'Tierra de auroras boreales y resiliencia infinita',
+        preguntas: pFor([CategoriaLibro.motivacion]),
+      ),
+      RetoModulo(
+        id: 2, nombre: 'Desarrollo Personal', emoji: '🌱',
+        descripcion: 'Conviértete en la mejor versión de ti',
+        dificultad: '⭐⭐ Básico+', pais: 'Maldivas', bandera: '🇲🇻',
+        paisEmoji: '🏝️🌊💙',
+        paisDesc: 'Paraíso donde la abundancia es una decisión',
+        preguntas: pFor([CategoriaLibro.desarrolloPersonal]),
+      ),
+      RetoModulo(
+        id: 3, nombre: 'Emprendimiento', emoji: '🚀',
+        descripcion: 'Construye algo que el mundo necesita',
+        dificultad: '⭐⭐⭐ Intermedio', pais: 'Marruecos', bandera: '🇲🇦',
+        paisEmoji: '🕌🐪🌅',
+        paisDesc: 'Tierra de comerciantes y rutas de riqueza milenarias',
+        preguntas: pFor([CategoriaLibro.emprendedor]),
+      ),
+      RetoModulo(
+        id: 4, nombre: 'Hábitos y Disciplina', emoji: '⚡',
+        descripcion: 'La diferencia entre soñar y lograr',
+        dificultad: '⭐⭐⭐ Intermedio', pais: 'Perú', bandera: '🇵🇪',
+        paisEmoji: '🦙🏔️🌿',
+        paisDesc: 'Tierra de civilizaciones que dominaron la disciplina',
+        preguntas: pFor([CategoriaLibro.disciplina]),
+      ),
+      RetoModulo(
+        id: 5, nombre: 'Autoestima y Confianza', emoji: '💜',
+        descripcion: 'Tu mayor inversión eres tú misma',
+        dificultad: '⭐⭐⭐ Intermedio', pais: 'Nueva Zelanda', bandera: '🇳🇿',
+        paisEmoji: '🥝🌿🏔️',
+        paisDesc: 'Tierra de líderes que conquistaron su mundo interior',
+        preguntas: pFor([CategoriaLibro.autoestima]),
+      ),
+      RetoModulo(
+        id: 6, nombre: 'Empoderamiento', emoji: '🦋',
+        descripcion: 'Transforma tu poder en acción imparable',
+        dificultad: '⭐⭐⭐⭐ Avanzado', pais: 'Noruega', bandera: '🇳🇴',
+        paisEmoji: '🌊🏔️🌄',
+        paisDesc: 'Tierra del alto rendimiento y la plenitud auténtica',
+        preguntas: pFor([CategoriaLibro.empoderamiento]),
+      ),
+      RetoModulo(
+        id: 7, nombre: 'Liderazgo', emoji: '👑',
+        descripcion: 'Inspira, guía y multiplica tu impacto',
+        dificultad: '⭐⭐⭐⭐ Avanzado', pais: 'Brasil', bandera: '🇧🇷',
+        paisEmoji: '🌴🎭🌺',
+        paisDesc: 'Tierra de líderes apasionados y visionarios',
+        preguntas: pFor([CategoriaLibro.liderazgo]),
+      ),
+      RetoModulo(
+        id: 8, nombre: 'Redes y Negocios', emoji: '🌐',
+        descripcion: 'Tu red es tu activo más poderoso',
+        dificultad: '⭐⭐⭐⭐ Avanzado', pais: 'India', bandera: '🇮🇳',
+        paisEmoji: '🕌🐘🌺',
+        paisDesc: 'Tierra de 1,400 millones de conexiones humanas',
+        preguntas: pFor([CategoriaLibro.mlm]),
+      ),
+      RetoModulo(
+        id: 9, nombre: 'Maestría Total', emoji: '🌍',
+        descripcion: 'El conocimiento que te hace imparable',
+        dificultad: '🏆 Maestría', pais: 'El Mundo', bandera: '🌎',
+        paisEmoji: '🌍🌎🌏',
+        paisDesc: 'Cuando dominas el conocimiento, el mundo entero es tuyo',
+        preguntas: pFor(CategoriaLibro.values.toList()),
+      ),
+    ];
+  }
+
+  Future<void> completarNivelReto(int moduloIdx, bool correcto) async {
+    final modulo = retoModulos[moduloIdx];
+    final actual = _retoProgreso[moduloIdx] ?? 0;
+    if (actual >= modulo.preguntas.length) return;
+    _retoProgreso[moduloIdx] = actual + 1;
+    if (correcto) _gemas += 5;
+    if ((_retoProgreso[moduloIdx] ?? 0) >= modulo.preguntas.length) {
+      _gemas += 50;
+      SoundPlayer.mision();
+    }
+    _registrarActividadHoy();
+    notifyListeners();
+    await _guardarDatos();
+  }
 
   // ── COMPUTED ──────────────────────────────
   // Usa _fechaSimuladaDebug en debug para que el simulador de días funcione
@@ -149,6 +343,20 @@ class AppProvider extends ChangeNotifier {
     _racha = prefs.getInt('racha') ?? 0;
     _gemas = prefs.getInt('gemas') ?? 50;
     _vidas = prefs.getInt('vidas') ?? 5;
+    _tiempoVidaRecarga = prefs.getString('tiempoVidaRecarga') ?? '';
+    // Regenerar vidas acumuladas: 1 cada 2 horas mientras _vidas < 5
+    if (_vidas < 5 && _tiempoVidaRecarga.isNotEmpty) {
+      final ref = DateTime.tryParse(_tiempoVidaRecarga);
+      if (ref != null) {
+        var tiempoRef = ref;
+        final ahora = DateTime.now();
+        while (_vidas < 5 && tiempoRef.add(const Duration(hours: 2)).isBefore(ahora)) {
+          _vidas++;
+          tiempoRef = tiempoRef.add(const Duration(hours: 2));
+        }
+        _tiempoVidaRecarga = _vidas >= 5 ? '' : tiempoRef.toIso8601String();
+      }
+    }
     _nivelActual = prefs.getInt('nivel') ?? 1;
     _ultimaFechaRacha = prefs.getString('ultimaFechaRacha') ?? '';
     _avatarActual = prefs.getString('avatarActual') ?? '🦋';
@@ -262,6 +470,32 @@ class AppProvider extends ChangeNotifier {
     final completadas = _lecciones.where((l) => l.estado == EstadoLeccion.completada).length;
     _nivelActual = completadas + 1;
 
+    // Biblioteca — estados de libros
+    final librosEstadoJson = prefs.getString('librosEstado') ?? '{}';
+    try {
+      final Map<String, dynamic> estadoMap = jsonDecode(librosEstadoJson);
+      for (final libro in _libros) {
+        final idx = estadoMap[libro.id];
+        if (idx != null && idx < EstadoLibro.values.length) {
+          libro.estado = EstadoLibro.values[idx as int];
+        }
+      }
+    } catch (_) {}
+
+    final capitulosJson = prefs.getString('capitulosLeidos') ?? '{}';
+    try {
+      final Map<String, dynamic> capMap = jsonDecode(capitulosJson);
+      _capitulosLeidos = capMap.map((k, v) =>
+          MapEntry(k, Set<int>.from((v as List).map((e) => e as int))));
+    } catch (_) {}
+
+    // Reto progreso
+    final retoJson = prefs.getString('retoProgreso') ?? '{}';
+    try {
+      final m = jsonDecode(retoJson) as Map<String, dynamic>;
+      _retoProgreso = m.map((k, v) => MapEntry(int.parse(k), (v as num).toInt()));
+    } catch (_) {}
+
     _verificarRachaDelDia();
     _actualizarMetasConCashflow(); // Asegura que las metas estén al día al cargar
     notifyListeners();
@@ -274,6 +508,7 @@ class AppProvider extends ChangeNotifier {
     await prefs.setInt('racha', _racha);
     await prefs.setInt('gemas', _gemas);
     await prefs.setInt('vidas', _vidas);
+    await prefs.setString('tiempoVidaRecarga', _tiempoVidaRecarga);
     await prefs.setInt('nivel', _nivelActual);
     await prefs.setString('ultimaFechaRacha', _ultimaFechaRacha);
     await prefs.setString('avatarActual', _avatarActual);
@@ -320,6 +555,16 @@ class AppProvider extends ChangeNotifier {
       'misionesEstado',
       _misiones.map((m) => jsonEncode({'p': m.progreso, 'c': m.completada})).toList(),
     );
+
+    // Biblioteca
+    final estadoMap = {for (final l in _libros) l.id: l.estado.index};
+    await prefs.setString('librosEstado', jsonEncode(estadoMap));
+    final capMap = _capitulosLeidos.map((k, v) => MapEntry(k, v.toList()));
+    await prefs.setString('capitulosLeidos', jsonEncode(capMap));
+
+    // Reto progreso
+    await prefs.setString('retoProgreso',
+        jsonEncode(_retoProgreso.map((k, v) => MapEntry(k.toString(), v))));
   }
 
   // ═════════════════════════════════════════
@@ -385,6 +630,16 @@ class AppProvider extends ChangeNotifier {
     await _guardarDatos();
   }
 
+  Future<void> depositarDesdeImperio(double monto) async {
+    _fondoCashflow += monto;
+    _gemas += 10;
+    _actualizarMetasConCashflow();
+    _actualizarMisionCashflow();
+    _actualizarHistorialGrafica();
+    notifyListeners();
+    await _guardarDatos();
+  }
+
   Future<void> eliminarTransaccion(String id) async {
     final tx = _transacciones.firstWhere((t) => t.id == id, orElse: () => throw Exception('TX not found'));
     _transacciones.removeWhere((t) => t.id == id);
@@ -437,7 +692,10 @@ class AppProvider extends ChangeNotifier {
 
   Future<void> perderVida() async {
     if (_vidas > 0) {
+      final eraMaximo = _vidas == 5;
       _vidas--;
+      // Arrancar el contador de recarga cuando las vidas bajan del maximo
+      if (eraMaximo) _tiempoVidaRecarga = DateTime.now().toIso8601String();
       notifyListeners();
       await _guardarDatos();
     }
@@ -447,6 +705,7 @@ class AppProvider extends ChangeNotifier {
     if (_gemas >= 30 && _vidas < 5) {
       _gemas -= 30;
       _vidas = 5;
+      _tiempoVidaRecarga = '';
       notifyListeners();
       await _guardarDatos();
     }
@@ -629,6 +888,7 @@ class AppProvider extends ChangeNotifier {
     _racha = 0;
     _gemas = 50;
     _vidas = 5;
+    _tiempoVidaRecarga = '';
     _nivelActual = 1;
     _ultimaFechaRacha = '';
     _avatarActual = '🦋';
@@ -648,6 +908,8 @@ class AppProvider extends ChangeNotifier {
     _avatares = crearAvatares();
     _onboardingCompletado = false;
     _pinPadres = pinActual; // Restaurar el PIN
+    _retoProgreso = {};
+    _retoModulos = null;
     notifyListeners();
     await _guardarDatos();
   }

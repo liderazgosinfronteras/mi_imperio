@@ -1,5 +1,5 @@
-name: financiera_app
-description: "App de Educación Financiera para mi hija - La Aventura del Dinero"
+name: mi_imperio
+description: "Mi Imperio — App de educación financiera gamificada para LSF"
 publish_to: 'none'
 version: 1.0.2+3
 
@@ -16,6 +16,11 @@ dependencies:
   flutter_local_notifications: ^17.2.2
   timezone: ^0.9.4
   fl_chart: ^0.68.0
+  firebase_core: ^3.0.0
+  firebase_auth: ^5.0.0
+  cloud_firestore: ^5.0.0
+  flutter_tts: ^4.0.2
+  share_plus: ^10.0.0
 
 dev_dependencies:
   flutter_test:

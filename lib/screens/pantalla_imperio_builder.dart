@@ -1,13 +1,16 @@
 // lib/screens/pantalla_imperio_builder.dart — Imperio Builder 🏙️
 import 'dart:async';
 import 'dart:convert';
+import 'dart:math';
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
+import 'package:share_plus/share_plus.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import '../models/imperio_model.dart';
 import '../providers/app_provider.dart';
 import '../services/firebase_service.dart';
 import '../theme.dart';
+import '../utils/sound_player.dart';
 
 // ═══════════════════════════════════════════════════════════════
 //  PANTALLA PRINCIPAL
@@ -19,11 +22,13 @@ class PantallaImperioBuilder extends StatefulWidget {
 }
 
 class _PantallaImperioBuilderState extends State<PantallaImperioBuilder>
-    with TickerProviderStateMixin {
+    with TickerProviderStateMixin, WidgetsBindingObserver {
   List<IBNegocio> _negocios = crearNegocios();
   double _dinero = 0;
   double _totalGanado = 0;
   Timer? _ticker;
+  Timer? _timerGuardado;
+  int    _prestiges = 0;
   bool _cargado = false;
   String? _mensajeHito;
   IBNegocio? _leccionActual;
@@ -34,14 +39,24 @@ class _PantallaImperioBuilderState extends State<PantallaImperioBuilder>
   @override
   void initState() {
     super.initState();
+    WidgetsBinding.instance.addObserver(this);
     _hitoCtrl = AnimationController(vsync: this, duration: const Duration(milliseconds: 800));
     _hitoAnim = CurvedAnimation(parent: _hitoCtrl, curve: Curves.elasticOut);
     _cargarEstado();
   }
 
   @override
+  void didChangeAppLifecycleState(AppLifecycleState state) {
+    if (state == AppLifecycleState.paused || state == AppLifecycleState.inactive) {
+      _guardarEstado();
+    }
+  }
+
+  @override
   void dispose() {
+    WidgetsBinding.instance.removeObserver(this);
     _ticker?.cancel();
+    _timerGuardado?.cancel();
     _guardarEstado();
     _hitoCtrl.dispose();
     super.dispose();
@@ -56,6 +71,7 @@ class _PantallaImperioBuilderState extends State<PantallaImperioBuilder>
     final totalGanado = prefs.getDouble('ib_total') ?? 0;
     final ultimaVez   = prefs.getString('ib_ultima') ?? '';
     final nivelesJson = prefs.getString('ib_niveles') ?? '{}';
+    final prestiges   = prefs.getInt('ib_prestiges') ?? 0;
     final niveles     = Map<String, dynamic>.from(jsonDecode(nivelesJson));
 
     // Aplicar niveles guardados
@@ -64,14 +80,14 @@ class _PantallaImperioBuilderState extends State<PantallaImperioBuilder>
       if (niveles.containsKey(n.id)) n.nivel = niveles[n.id] as int;
     }
 
-    // Calcular ganancias offline (máx 8 horas)
+    // Ganancias offline: máx 2 horas de tiempo Y máx $50,000
     double offline = 0;
     if (ultimaVez.isNotEmpty) {
       final ultima = DateTime.tryParse(ultimaVez);
       if (ultima != null) {
-        final segundos = DateTime.now().difference(ultima).inSeconds.clamp(0, 28800);
+        final segundos = DateTime.now().difference(ultima).inSeconds.clamp(0, 7200);
         final ingresoSeg = negocios.fold(0.0, (s, n) => s + n.ingresoActual);
-        offline = ingresoSeg * segundos;
+        offline = (ingresoSeg * segundos).clamp(0.0, 50000.0);
       }
     }
 
@@ -82,6 +98,7 @@ class _PantallaImperioBuilderState extends State<PantallaImperioBuilder>
       _totalGanado = totalGanado + offline;
       _cargado     = true;
       _hitoActual  = _calcHitoActual(totalGanado);
+      _prestiges   = prestiges;
     });
 
     if (offline >= 10) _mostrarOffline(offline);
@@ -95,24 +112,27 @@ class _PantallaImperioBuilderState extends State<PantallaImperioBuilder>
     await prefs.setString('ib_ultima', DateTime.now().toIso8601String());
     final niveles = {for (final n in _negocios) n.id: n.nivel};
     await prefs.setString('ib_niveles', jsonEncode(niveles));
-    // Sincronizar con leaderboard global
-    FirebaseService.updateLeaderboard(_totalGanado, nivelImperio(_totalGanado));
+    await prefs.setInt('ib_prestiges', _prestiges);
+    if (kFirebaseEnabled) {
+      FirebaseService.updateLeaderboard(_totalGanado, nivelImperio(_totalGanado));
+    }
   }
 
   void _iniciarTicker() {
     _ticker?.cancel();
+    _timerGuardado?.cancel();
     _ticker = Timer.periodic(const Duration(milliseconds: 100), (_) {
       if (!mounted) return;
-      final ingresoSeg = _negocios.fold(0.0, (s, n) => s + n.ingresoActual);
-      final ganado = ingresoSeg * 0.1; // 100ms = 0.1 seg
+      final bonus = bonusMultiplier(_totalGanado) * pow(1.5, _prestiges.clamp(0, 7));
+      final ingresoSeg = _negocios.fold(0.0, (s, n) => s + n.ingresoActual) * bonus;
+      final ganado = ingresoSeg * 0.1;
       setState(() {
         _dinero      += ganado;
         _totalGanado += ganado;
       });
       _verificarHitos();
     });
-    // Guardar cada 30 segundos
-    Timer.periodic(const Duration(seconds: 30), (_) { if (mounted) _guardarEstado(); });
+    _timerGuardado = Timer.periodic(const Duration(seconds: 30), (_) { if (mounted) _guardarEstado(); });
   }
 
   int _calcHitoActual(double total) {
@@ -130,6 +150,7 @@ class _PantallaImperioBuilderState extends State<PantallaImperioBuilder>
       final h = kHitos[nuevo];
       setState(() => _mensajeHito = '${h.$1} ${h.$2}\n${h.$3}\n${h.$4}');
       _hitoCtrl.forward(from: 0);
+      nuevo == kHitos.length - 1 ? SoundPlayer.victoria() : SoundPlayer.mision();
     }
   }
 
@@ -144,6 +165,7 @@ class _PantallaImperioBuilderState extends State<PantallaImperioBuilder>
       _dinero -= costo;
       n.nivel++;
     });
+    SoundPlayer.compra();
     _guardarEstado();
     if (esPrimero) {
       setState(() => _leccionActual = n);
@@ -152,7 +174,97 @@ class _PantallaImperioBuilderState extends State<PantallaImperioBuilder>
 
   int get _totalNegocios => _negocios.where((n) => n.comprado).length;
 
-  double get _ingresoPorSegundo => _negocios.fold(0.0, (s, n) => s + n.ingresoActual);
+  double get _ingresoPorSegundo =>
+      _negocios.fold(0.0, (s, n) => s + n.ingresoActual) *
+      bonusMultiplier(_totalGanado) * pow(1.5, _prestiges.clamp(0, 7));
+
+  // ─────────────────────────────────────────
+  //  ETA PARA EL SIGUIENTE NEGOCIO
+  // ─────────────────────────────────────────
+  String _etaParaComprar(IBNegocio n) {
+    final falta = n.costoSiguiente - _dinero;
+    if (falta <= 0 || _ingresoPorSegundo <= 0) return '∞';
+    final seg = falta / _ingresoPorSegundo;
+    if (seg < 60)    return '${seg.round()}s';
+    if (seg < 3600)  return '${(seg / 60).round()}min';
+    if (seg < 86400) return '${(seg / 3600).toStringAsFixed(1)}h';
+    return '${(seg / 86400).round()}d';
+  }
+
+  // ─────────────────────────────────────────
+  //  PRESTIGE
+  // ─────────────────────────────────────────
+  static const _maxPrestiges = 7;
+
+  void _hacerPrestige() {
+    final esMaximo = _prestiges >= _maxPrestiges;
+    final multActual = pow(1.5, _prestiges.clamp(0, _maxPrestiges)).toStringAsFixed(2);
+    final multSig    = pow(1.5, (_prestiges + 1).clamp(0, _maxPrestiges)).toStringAsFixed(2);
+    showDialog(
+      context: context,
+      builder: (_) => AlertDialog(
+        backgroundColor: AppColors.fondoCard,
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(24)),
+        title: const Text('⚡ PRESTIGE', style: TextStyle(color: Color(0xFFFFD700), fontWeight: FontWeight.w900, fontSize: 20)),
+        content: Column(mainAxisSize: MainAxisSize.min, children: [
+          Text(esMaximo ? '👑' : '⚡', style: const TextStyle(fontSize: 60)),
+          const SizedBox(height: 12),
+          Text(
+            esMaximo
+              ? '¡Alcanzaste el PRESTIGE MÁXIMO!\nSigues ganando con el multiplicador máximo ×$multActual para siempre.'
+              : '¡Alcanzaste el Millón!\nReinicia tu Imperio desde cero pero con un multiplicador permanente de ×1.5.',
+            style: AppTextStyles.body, textAlign: TextAlign.center,
+          ),
+          const SizedBox(height: 12),
+          Text('Prestige: $_prestiges / $_maxPrestiges', style: const TextStyle(color: AppColors.neonAmarillo, fontWeight: FontWeight.w800)),
+          const SizedBox(height: 4),
+          Text(
+            esMaximo
+              ? 'Multiplicador máximo: ×$multActual 🏆'
+              : 'Multiplicador: ×$multActual  →  ×$multSig',
+            style: const TextStyle(color: AppColors.neonVerde, fontWeight: FontWeight.w700, fontSize: 13),
+          ),
+        ]),
+        actions: [
+          TextButton(onPressed: () => Navigator.pop(context), child: const Text('Cancelar', style: TextStyle(color: AppColors.textoGris))),
+          if (!esMaximo) TextButton.icon(
+            icon: const Text('📲', style: TextStyle(fontSize: 16)),
+            label: const Text('Compartir', style: TextStyle(color: AppColors.neonMorado)),
+            onPressed: () {
+              final texto = '⚡ ¡Hice PRESTIGE ${_prestiges + 1} en Imperio Builder!\n'
+                  'Alcancé \$1,000,000 y reinicié con multiplicador ×$multSig\n\n'
+                  '¡Construye tu libertad financiera desde cero! 💪\n'
+                  '👑 Mi Imperio — App LSF';
+              Share.share(texto);
+            },
+          ),
+          if (!esMaximo) ElevatedButton(
+            style: ElevatedButton.styleFrom(backgroundColor: const Color(0xFFFFD700)),
+            onPressed: () {
+              Navigator.pop(context);
+              setState(() {
+                _prestiges++;
+                _negocios    = crearNegocios();
+                _dinero      = 50.0;
+                _totalGanado = 0;
+                _hitoActual  = -1;
+                _leccionActual = null;
+                _mensajeHito   = null;
+              });
+              _guardarEstado();
+              SoundPlayer.victoria();
+            },
+            child: const Text('⚡ PRESTIGE!', style: TextStyle(color: Colors.black, fontWeight: FontWeight.w900)),
+          ),
+          if (esMaximo) ElevatedButton(
+            style: ElevatedButton.styleFrom(backgroundColor: AppColors.neonMorado),
+            onPressed: () => Navigator.pop(context),
+            child: const Text('¡Soy Leyenda! 👑', style: TextStyle(color: Colors.white, fontWeight: FontWeight.w900)),
+          ),
+        ],
+      ),
+    );
+  }
 
   void _mostrarOffline(double cantidad) {
     Future.delayed(const Duration(milliseconds: 800), () {
@@ -168,7 +280,7 @@ class _PantallaImperioBuilderState extends State<PantallaImperioBuilder>
             const SizedBox(height: 10),
             const Text('Tus negocios trabajaron sin ti:', style: AppTextStyles.body),
             const SizedBox(height: 8),
-            Text('\$${_formatNum(cantidad)}', style: const TextStyle(color: AppColors.neonVerde, fontSize: 32, fontWeight: FontWeight.w900)),
+            Text(_formatNum(cantidad), style: const TextStyle(color: AppColors.neonVerde, fontSize: 32, fontWeight: FontWeight.w900)),
             const SizedBox(height: 8),
             const Text('💡 Eso es el ingreso pasivo en acción.\n¡El dinero trabaja, tú descansas!', style: AppTextStyles.caption, textAlign: TextAlign.center),
           ]),
@@ -260,18 +372,35 @@ class _PantallaImperioBuilderState extends State<PantallaImperioBuilder>
           _headerStat('🏆', _formatNum(_totalGanado), 'Total ganado', AppColors.neonMorado),
         ]),
         const SizedBox(height: 10),
-        GestureDetector(
-          onTap: _mostrarTransferencia,
-          child: Container(
-            width: double.infinity,
-            padding: const EdgeInsets.symmetric(vertical: 9),
-            decoration: BoxDecoration(
-              gradient: const LinearGradient(colors: AppColors.gradienteGreen),
-              borderRadius: BorderRadius.circular(10),
+        Row(children: [
+          Expanded(
+            child: GestureDetector(
+              onTap: _mostrarTransferencia,
+              child: Container(
+                padding: const EdgeInsets.symmetric(vertical: 9),
+                decoration: BoxDecoration(
+                  gradient: const LinearGradient(colors: AppColors.gradienteGreen),
+                  borderRadius: BorderRadius.circular(10),
+                ),
+                child: const Center(child: Text('💸 Depositar al Cashflow →', style: TextStyle(color: Colors.white, fontWeight: FontWeight.w800, fontSize: 12))),
+              ),
             ),
-            child: const Center(child: Text('💸 Depositar al Cashflow principal →', style: TextStyle(color: Colors.white, fontWeight: FontWeight.w800, fontSize: 12))),
           ),
-        ),
+          if (_totalGanado >= 1000000) ...[
+            const SizedBox(width: 8),
+            GestureDetector(
+              onTap: _hacerPrestige,
+              child: Container(
+                padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 9),
+                decoration: BoxDecoration(
+                  color: const Color(0xFFFFD700),
+                  borderRadius: BorderRadius.circular(10),
+                ),
+                child: const Text('⚡ PRESTIGE', style: TextStyle(color: Colors.black, fontWeight: FontWeight.w900, fontSize: 12)),
+              ),
+            ),
+          ],
+        ]),
       ]),
     );
   }
@@ -289,7 +418,7 @@ class _PantallaImperioBuilderState extends State<PantallaImperioBuilder>
         shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
         title: const Text('💸 Depositar al Cashflow', style: TextStyle(color: AppColors.textoBlanco, fontWeight: FontWeight.w800)),
         content: Column(mainAxisSize: MainAxisSize.min, children: [
-          Text('Disponible en Imperio: \$${_formatNum(_dinero)}', style: const TextStyle(color: AppColors.neonAmarillo, fontWeight: FontWeight.w700)),
+          Text('Disponible en Imperio: ${_formatNum(_dinero)}', style: const TextStyle(color: AppColors.neonAmarillo, fontWeight: FontWeight.w700)),
           const SizedBox(height: 4),
           const Text('Este dinero se suma a tu Fondo Cashflow y mueve la Barra Verde.', style: AppTextStyles.caption),
           const SizedBox(height: 16),
@@ -509,7 +638,7 @@ class _PantallaImperioBuilderState extends State<PantallaImperioBuilder>
               Text(n.descripcion, style: const TextStyle(color: AppColors.textoGris, fontSize: 11), maxLines: 2, overflow: TextOverflow.ellipsis),
               if (n.comprado) ...[
                 const SizedBox(height: 4),
-                Text('+\$${_formatNum(n.ingresoActual)}/s', style: TextStyle(color: color, fontWeight: FontWeight.w800, fontSize: 13)),
+                Text('+${_formatNum(n.ingresoActual)}/s', style: TextStyle(color: color, fontWeight: FontWeight.w800, fontSize: 13)),
               ],
             ])),
           ]),
@@ -540,7 +669,7 @@ class _PantallaImperioBuilderState extends State<PantallaImperioBuilder>
                 ),
                 child: Row(mainAxisAlignment: MainAxisAlignment.center, children: [
                   Text(
-                    n.comprado ? '⬆️ Mejorar · \$${_formatNum(n.costoSiguiente)}' : '🏗️ Construir · \$${_formatNum(n.costoSiguiente)}',
+                    n.comprado ? '⬆️ Mejorar · ${_formatNum(n.costoSiguiente)}' : '🏗️ Construir · ${_formatNum(n.costoSiguiente)}',
                     style: TextStyle(
                       color: puedePagar ? Colors.white : AppColors.textoGris,
                       fontWeight: FontWeight.w900, fontSize: 14,
@@ -552,7 +681,7 @@ class _PantallaImperioBuilderState extends State<PantallaImperioBuilder>
           ),
           if (!puedePagar) ...[
             const SizedBox(height: 6),
-            Text('Faltan \$${_formatNum(n.costoSiguiente - _dinero)}', style: const TextStyle(color: AppColors.textoGris, fontSize: 10)),
+            Text('Faltan ${_formatNum(n.costoSiguiente - _dinero)} · en ~${_etaParaComprar(n)}', style: const TextStyle(color: AppColors.textoGris, fontSize: 10)),
           ],
         ]),
       ),
@@ -593,7 +722,7 @@ class _PantallaImperioBuilderState extends State<PantallaImperioBuilder>
                   child: Text(n.leccion, style: const TextStyle(color: AppColors.neonAmarillo, fontSize: 13, height: 1.5), textAlign: TextAlign.center),
                 ),
                 const SizedBox(height: 16),
-                Text('+\$${_formatNum(n.ingresoActual)}/segundo de ingreso pasivo', style: TextStyle(color: _categoriaColor(n.categoria), fontWeight: FontWeight.w800, fontSize: 15)),
+                Text('+${_formatNum(n.ingresoActual)}/segundo de ingreso pasivo', style: TextStyle(color: _categoriaColor(n.categoria), fontWeight: FontWeight.w800, fontSize: 15)),
                 const SizedBox(height: 16),
                 GestureDetector(
                   onTap: () => setState(() => _leccionActual = null),
@@ -644,14 +773,35 @@ class _PantallaImperioBuilderState extends State<PantallaImperioBuilder>
                   const SizedBox(height: 10),
                   Text(h.$4, style: const TextStyle(color: Colors.white70, fontSize: 14, height: 1.5), textAlign: TextAlign.center),
                   const SizedBox(height: 20),
-                  GestureDetector(
-                    onTap: () => setState(() => _mensajeHito = null),
-                    child: Container(
-                      padding: const EdgeInsets.symmetric(horizontal: 28, vertical: 12),
-                      decoration: BoxDecoration(color: const Color(0xFFFFD700), borderRadius: BorderRadius.circular(14)),
-                      child: const Text('¡SEGUIR! 🚀', style: TextStyle(color: Colors.black, fontWeight: FontWeight.w900, fontSize: 16)),
+                  Row(mainAxisAlignment: MainAxisAlignment.center, children: [
+                    GestureDetector(
+                      onTap: () => setState(() => _mensajeHito = null),
+                      child: Container(
+                        padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 12),
+                        decoration: BoxDecoration(color: const Color(0xFFFFD700), borderRadius: BorderRadius.circular(14)),
+                        child: const Text('¡SEGUIR! 🚀', style: TextStyle(color: Colors.black, fontWeight: FontWeight.w900, fontSize: 16)),
+                      ),
                     ),
-                  ),
+                    const SizedBox(width: 10),
+                    GestureDetector(
+                      onTap: () {
+                        final texto = '${h.$2} ¡Alcancé ${h.$3} en Imperio Builder!\n'
+                            '${h.$4}\n'
+                            '💰 Total generado: ${_formatNum(_totalGanado)}\n\n'
+                            '¡Construye tu libertad financiera! 👑\n'
+                            'Mi Imperio — App LSF';
+                        Share.share(texto);
+                      },
+                      child: Container(
+                        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+                        decoration: BoxDecoration(
+                          border: Border.all(color: const Color(0xFFFFD700)),
+                          borderRadius: BorderRadius.circular(14),
+                        ),
+                        child: const Text('📲', style: TextStyle(fontSize: 20)),
+                      ),
+                    ),
+                  ]),
                 ]),
               ),
             ),

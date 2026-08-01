@@ -16,7 +16,7 @@ class IBNegocio {
 
   bool get comprado => nivel > 0;
   double get costoUpgrade => costoBase * pow(1.6, nivel);
-  double get ingresoActual => comprado ? ingresoBase * nivel * (1 + nivel * 0.1) : 0;
+  double get ingresoActual => comprado ? ingresoBase * nivel * (1 + nivel * 0.05) : 0;
   double get costoSiguiente => comprado ? costoUpgrade : costoBase;
 
   IBNegocio copyWith({int? nivel}) => IBNegocio(

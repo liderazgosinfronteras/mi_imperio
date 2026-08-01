@@ -1,4 +1,5 @@
 // lib/main.dart
+import 'package:firebase_core/firebase_core.dart';
 import 'package:flutter/foundation.dart' show kIsWeb;
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
@@ -6,7 +7,9 @@ import 'package:provider/provider.dart';
 import 'package:flutter_local_notifications/flutter_local_notifications.dart';
 import 'package:timezone/data/latest.dart' as tz;
 import 'package:timezone/timezone.dart' as tz;
+import 'firebase_options.dart';
 import 'providers/app_provider.dart';
+import 'services/firebase_service.dart';
 import 'screens/pantalla_dashboard.dart';
 import 'screens/pantalla_educacion.dart';
 import 'screens/pantalla_mercado.dart';
@@ -16,6 +19,7 @@ import 'screens/pantalla_metas.dart';
 import 'screens/pantalla_perfil.dart';
 import 'screens/pantalla_juegos.dart';
 import 'theme.dart';
+import 'utils/sound_player.dart';
 
 // ─────────────────────────────────────────────
 //  NOTIFICACIONES
@@ -72,6 +76,11 @@ tz.TZDateTime _proximaHora(int hora, int minuto) {
 // ─────────────────────────────────────────────
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
+  try {
+    await Firebase.initializeApp(options: DefaultFirebaseOptions.currentPlatform);
+    FirebaseService.markReady(); // marca Firebase como listo antes de que el usuario interactúe
+    FirebaseService.silentAutoLogin(); // fire-and-forget: da UID antes de que abran Imperio Builder
+  } catch (_) {}
   if (!kIsWeb) {
     await SystemChrome.setPreferredOrientations([DeviceOrientation.portraitUp, DeviceOrientation.portraitDown]);
     SystemChrome.setSystemUIOverlayStyle(const SystemUiOverlayStyle(statusBarColor: Colors.transparent, statusBarIconBrightness: Brightness.light));
@@ -113,7 +122,7 @@ class _RootRouter extends StatelessWidget {
 }
 
 // ─────────────────────────────────────────────
-//  NAVEGACIÓN PRINCIPAL — 4 tabs
+//  NAVEGACIÓN PRINCIPAL — 7 tabs
 // ─────────────────────────────────────────────
 class PantallaHome extends StatefulWidget {
   const PantallaHome({super.key});
@@ -131,12 +140,16 @@ class _PantallaHomeState extends State<PantallaHome> {
 
     final paginas = [
       const PantallaDashboard(),
-      esDiaEducacion ? const PantallaEducacion() : const PantallaMercado(),
+      const PantallaMercado(),
+      const PantallaEducacion(),
       const PantallaJuegos(),
       const PantallaMisiones(),
       const PantallaMetas(),
       const PantallaPerfil(),
     ];
+
+    // Ocultar FAB en el tab de Ventas (ya tiene su propio formulario) y en Juegos
+    final mostrarFab = _tab != 1 && _tab != 3;
 
     return Scaffold(
       backgroundColor: AppColors.fondoOscuro,
@@ -145,14 +158,55 @@ class _PantallaHomeState extends State<PantallaHome> {
         transitionBuilder: (child, anim) => FadeTransition(opacity: anim, child: child),
         child: KeyedSubtree(key: ValueKey(_tab), child: paginas[_tab]),
       ),
+      floatingActionButton: mostrarFab
+          ? FloatingActionButton.extended(
+              onPressed: () => _mostrarRegistroVenta(context, app),
+              backgroundColor: const Color(0xFF1B5E20),
+              icon: const Text('💰', style: TextStyle(fontSize: 20)),
+              label: const Text('Registrar Venta',
+                  style: TextStyle(color: Colors.white, fontWeight: FontWeight.w800, fontSize: 13)),
+              shape: RoundedRectangleBorder(
+                borderRadius: BorderRadius.circular(16),
+                side: const BorderSide(color: Color(0xFF4CAF50), width: 1.5),
+              ),
+            )
+          : null,
+      floatingActionButtonLocation: FloatingActionButtonLocation.centerFloat,
       bottomNavigationBar: _buildNavBar(app, esDiaEducacion),
+    );
+  }
+
+  void _mostrarRegistroVenta(BuildContext context, AppProvider app) {
+    final montoCtrl = TextEditingController();
+    final descCtrl = TextEditingController();
+    showModalBottomSheet(
+      context: context,
+      isScrollControlled: true,
+      backgroundColor: Colors.transparent,
+      builder: (_) => _ModalRegistroVenta(
+        montoCtrl: montoCtrl,
+        descCtrl: descCtrl,
+        onRegistrar: (monto, desc) {
+          app.registrarVenta(monto, desc);
+          try { SoundPlayer.venta(); } catch (_) {}
+          Navigator.pop(context);
+          ScaffoldMessenger.of(context).showSnackBar(SnackBar(
+            content: Text('✅ Venta de \$${monto.toStringAsFixed(2)} registrada'),
+            backgroundColor: const Color(0xFF2E7D32),
+            behavior: SnackBarBehavior.floating,
+            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+            duration: const Duration(seconds: 2),
+          ));
+        },
+      ),
     );
   }
 
   Widget _buildNavBar(AppProvider app, bool esDiaEducacion) {
     final items = [
       _NavItem('🏠', 'Inicio'),
-      _NavItem(esDiaEducacion ? '📚' : '🏪', esDiaEducacion ? 'Academia' : 'Tienda'),
+      const _NavItem('💰', 'Ventas'),
+      const _NavItem('📚', 'Academia'),
       _NavItem('🎮', 'Juegos'),
       _NavItem('🎯', 'Misiones'),
       _NavItem('🏆', 'Metas'),
@@ -208,4 +262,160 @@ class _NavItem {
   final String emoji;
   final String label;
   const _NavItem(this.emoji, this.label);
+}
+
+// ─────────────────────────────────────────────
+//  MODAL REGISTRO RÁPIDO DE VENTA
+// ─────────────────────────────────────────────
+class _ModalRegistroVenta extends StatefulWidget {
+  final TextEditingController montoCtrl;
+  final TextEditingController descCtrl;
+  final void Function(double monto, String desc) onRegistrar;
+  const _ModalRegistroVenta({required this.montoCtrl, required this.descCtrl, required this.onRegistrar});
+
+  @override
+  State<_ModalRegistroVenta> createState() => _ModalRegistroVentaState();
+}
+
+class _ModalRegistroVentaState extends State<_ModalRegistroVenta> {
+  String _error = '';
+
+  double? get _monto => double.tryParse(widget.montoCtrl.text.trim());
+
+  @override
+  Widget build(BuildContext context) {
+    final monto = _monto;
+    final bottom = MediaQuery.of(context).viewInsets.bottom;
+    return Container(
+      padding: EdgeInsets.fromLTRB(20, 20, 20, 20 + bottom),
+      decoration: const BoxDecoration(
+        color: Color(0xFF0D1A0E),
+        borderRadius: BorderRadius.vertical(top: Radius.circular(24)),
+        border: Border(top: BorderSide(color: Color(0xFF4CAF50), width: 2)),
+      ),
+      child: Column(mainAxisSize: MainAxisSize.min, children: [
+        // Manija
+        Container(width: 44, height: 4,
+          decoration: BoxDecoration(color: Colors.white24, borderRadius: BorderRadius.circular(2))),
+        const SizedBox(height: 16),
+
+        // Título
+        const Row(children: [
+          Text('💰', style: TextStyle(fontSize: 28)),
+          SizedBox(width: 10),
+          Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+            Text('Registrar Venta', style: TextStyle(color: Colors.white, fontSize: 18, fontWeight: FontWeight.w900)),
+            Text('¿Cuánto vendiste hoy?', style: TextStyle(color: Colors.white54, fontSize: 12)),
+          ]),
+        ]),
+        const SizedBox(height: 20),
+
+        // Campo monto
+        TextField(
+          controller: widget.montoCtrl,
+          autofocus: true,
+          keyboardType: const TextInputType.numberWithOptions(decimal: true),
+          inputFormatters: [FilteringTextInputFormatter.allow(RegExp(r'^\d*\.?\d{0,2}'))],
+          style: const TextStyle(color: Color(0xFF4CAF50), fontSize: 32, fontWeight: FontWeight.w900),
+          decoration: InputDecoration(
+            prefixText: '\$  ',
+            prefixStyle: const TextStyle(color: Color(0xFF4CAF50), fontSize: 28, fontWeight: FontWeight.w900),
+            hintText: '0.00',
+            hintStyle: const TextStyle(color: Colors.white24, fontSize: 28),
+            filled: true,
+            fillColor: const Color(0xFF0A2A0B),
+            border: OutlineInputBorder(borderRadius: BorderRadius.circular(14), borderSide: const BorderSide(color: Color(0xFF4CAF50))),
+            enabledBorder: OutlineInputBorder(borderRadius: BorderRadius.circular(14), borderSide: const BorderSide(color: Colors.white24)),
+            focusedBorder: OutlineInputBorder(borderRadius: BorderRadius.circular(14), borderSide: const BorderSide(color: Color(0xFF4CAF50), width: 2)),
+          ),
+          onChanged: (_) => setState(() => _error = ''),
+        ),
+        const SizedBox(height: 12),
+
+        // Campo descripción
+        TextField(
+          controller: widget.descCtrl,
+          style: const TextStyle(color: Colors.white),
+          decoration: InputDecoration(
+            hintText: 'Descripción (opcional): productos, nombre cliente...',
+            hintStyle: const TextStyle(color: Colors.white38, fontSize: 12),
+            filled: true,
+            fillColor: const Color(0xFF0A2A0B),
+            border: OutlineInputBorder(borderRadius: BorderRadius.circular(14), borderSide: const BorderSide(color: Colors.white24)),
+            enabledBorder: OutlineInputBorder(borderRadius: BorderRadius.circular(14), borderSide: const BorderSide(color: Colors.white24)),
+            focusedBorder: OutlineInputBorder(borderRadius: BorderRadius.circular(14), borderSide: const BorderSide(color: Color(0xFF4CAF50))),
+          ),
+        ),
+        const SizedBox(height: 12),
+
+        // Preview distribución 30/40/30
+        if (monto != null && monto > 0) ...[
+          Container(
+            padding: const EdgeInsets.all(12),
+            decoration: BoxDecoration(
+              color: const Color(0xFF0A2A0B),
+              borderRadius: BorderRadius.circular(12),
+              border: Border.all(color: Colors.white12),
+            ),
+            child: Row(children: [
+              _chip('🔄 30%', '\$${(monto * 0.30).toStringAsFixed(2)}', const Color(0xFFFFD700)),
+              const SizedBox(width: 6),
+              _chip('🛍️ 40%', '\$${(monto * 0.40).toStringAsFixed(2)}', const Color(0xFFE91E63)),
+              const SizedBox(width: 6),
+              _chip('📈 30%', '\$${(monto * 0.30).toStringAsFixed(2)}', const Color(0xFF4CAF50)),
+            ]),
+          ),
+          const SizedBox(height: 12),
+        ],
+
+        if (_error.isNotEmpty) ...[
+          Text(_error, style: const TextStyle(color: Colors.redAccent, fontSize: 12)),
+          const SizedBox(height: 8),
+        ],
+
+        // Botón registrar
+        GestureDetector(
+          onTap: () {
+            final m = _monto;
+            if (m == null || m <= 0) {
+              setState(() => _error = 'Ingresa un monto válido mayor a \$0');
+              return;
+            }
+            if (m > 9999) {
+              setState(() => _error = 'El monto máximo es \$9,999');
+              return;
+            }
+            widget.onRegistrar(m, widget.descCtrl.text.trim());
+          },
+          child: Container(
+            width: double.infinity,
+            padding: const EdgeInsets.symmetric(vertical: 16),
+            decoration: BoxDecoration(
+              gradient: const LinearGradient(colors: [Color(0xFF1B5E20), Color(0xFF4CAF50)]),
+              borderRadius: BorderRadius.circular(16),
+              border: Border.all(color: const Color(0xFF4CAF50).withValues(alpha: 0.6)),
+              boxShadow: [BoxShadow(color: const Color(0xFF4CAF50).withValues(alpha: 0.3), blurRadius: 12)],
+            ),
+            child: const Center(child: Text('✅ Registrar Venta',
+              style: TextStyle(color: Colors.white, fontSize: 16, fontWeight: FontWeight.w900))),
+          ),
+        ),
+      ]),
+    );
+  }
+
+  Widget _chip(String label, String valor, Color color) => Expanded(
+    child: Container(
+      padding: const EdgeInsets.symmetric(vertical: 6),
+      decoration: BoxDecoration(
+        color: color.withValues(alpha: 0.1),
+        borderRadius: BorderRadius.circular(8),
+        border: Border.all(color: color.withValues(alpha: 0.3)),
+      ),
+      child: Column(children: [
+        Text(label, style: TextStyle(color: color, fontSize: 9, fontWeight: FontWeight.w800)),
+        Text(valor, style: TextStyle(color: color, fontSize: 12, fontWeight: FontWeight.w900)),
+      ]),
+    ),
+  );
 }
