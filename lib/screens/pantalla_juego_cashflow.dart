@@ -7,6 +7,7 @@ import 'package:flutter/material.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import '../services/firebase_service.dart';
 import '../theme.dart';
+import '../utils/sound_player.dart';
 
 // ═══════════════════════════════════════════════════════════════
 //  MODELOS
@@ -119,6 +120,30 @@ const _pequenos = [
     descripcion:'Canal de educación financiera con 50K suscriptores. AdSense mensual.',
     leccion:'Tu audiencia es tu activo más valioso. Construye, no alquiles atención.',
     costo:200, ingresoPasivo:70, valorMercado:0),
+  CFCarta(tipo:'pequeno', emoji:'👥', titulo:'Red de distribución',
+    descripcion:'20 distribuidoras activas en tu equipo. Comisiones recurrentes automáticas cada mes.',
+    leccion:'Una red bien entrenada trabaja para ti 24/7. Es el activo más escalable del mundo.',
+    costo:500, ingresoPasivo:160, valorMercado:0),
+  CFCarta(tipo:'pequeno', emoji:'🎤', titulo:'Taller mensual de finanzas',
+    descripcion:'30 personas × \$60 = \$1,800. Una vez al mes en un café. Creció por referencias.',
+    leccion:'Tu conocimiento empaquetado como evento genera ingresos recurrentes sin inventario.',
+    costo:200, ingresoPasivo:80, valorMercado:0),
+  CFCarta(tipo:'pequeno', emoji:'🧴', titulo:'Línea de productos propia',
+    descripcion:'5 productos de bienestar con tu marca. Tu red los distribuye 24/7 sin que estés.',
+    leccion:'Quien crea el producto captura el mayor margen de toda la cadena de valor.',
+    costo:2500, ingresoPasivo:210, valorMercado:0),
+  CFCarta(tipo:'pequeno', emoji:'🏋️', titulo:'Club de membresías',
+    descripcion:'40 miembros activos a \$30/mes. Comunidad de bienestar y finanzas personales.',
+    leccion:'Las membresías crean ingresos predecibles, retención alta y comunidad leal.',
+    costo:2800, ingresoPasivo:250, valorMercado:2500),
+  CFCarta(tipo:'pequeno', emoji:'📦', titulo:'Inventario al mayoreo',
+    descripcion:'50 unidades al precio de costo. Tu red las vende al doble en 30 días.',
+    leccion:'El margen wholesale-retail financia tu crecimiento sin recurrir a deuda externa.',
+    costo:1500, ingresoPasivo:110, valorMercado:3000),
+  CFCarta(tipo:'pequeno', emoji:'🤝', titulo:'Alianza de afiliados',
+    descripcion:'3 socias refieren clientes a tu negocio. Pagas comisión solo cuando venden.',
+    leccion:'Los afiliados convierten tus costos fijos de marketing en variables. Riesgo cero.',
+    costo:0, ingresoPasivo:90, valorMercado:0),
 ];
 
 // ═══════════════════════════════════════════════════════════════
@@ -149,6 +174,18 @@ const _grandes = [
     descripcion:'Farmacia de barrio con dueño operando. Tú recibes utilidades.',
     leccion:'Negocios de salud son resistentes a recesiones económicas.',
     costo:40000, ingresoPasivo:3200, valorMercado:320000),
+  CFCarta(tipo:'grande', emoji:'🌐', titulo:'Plataforma de cursos online',
+    descripcion:'500 estudiantes a \$30/mes. Automatizado con videos pregrabados y soporte IA.',
+    leccion:'La tecnología escala tu conocimiento a costo marginal cero. Una vez, cobras siempre.',
+    costo:18000, ingresoPasivo:1500, valorMercado:50000),
+  CFCarta(tipo:'grande', emoji:'🏪', titulo:'Centro comercial 8 locales',
+    descripcion:'8 locales comerciales con contratos de 3 años. Administrado por agencia especializada.',
+    leccion:'Los bienes raíces comerciales generan el doble del retorno que los residenciales.',
+    costo:35000, ingresoPasivo:2600, valorMercado:280000),
+  CFCarta(tipo:'grande', emoji:'📡', titulo:'Agencia de marketing digital',
+    descripcion:'10 clientes corporativos. Staff de 4 personas. Tú solo supervisas resultados.',
+    leccion:'Un negocio que funciona sin ti es un activo. Un negocio que depende de ti, es un trabajo.',
+    costo:22000, ingresoPasivo:2000, valorMercado:80000),
 ];
 
 // ═══════════════════════════════════════════════════════════════
@@ -187,6 +224,22 @@ const _pasivos = [
     descripcion:'Consola nueva y 5 juegos. \$900 a la tarjeta.',
     leccion:'El entretenimiento tiene un costo de oportunidad: ese dinero podría invertirse.',
     costo:900, ingresoPasivo:0),
+  CFCarta(tipo:'pasivo', emoji:'📦', titulo:'Inventario sin rotar',
+    descripcion:'Compraste de más. No se vendió. \$1,500 bloqueados sin generar retorno.',
+    leccion:'Solo invierte en inventario que ya puedas vender. El flujo antes que el stock.',
+    costo:1500, ingresoPasivo:0),
+  CFCarta(tipo:'pasivo', emoji:'🎊', titulo:'Evento de lanzamiento caro',
+    descripcion:'El evento de tu negocio costó \$1,800 más de lo planeado. A la tarjeta.',
+    leccion:'Los eventos de marketing deben generar más ingresos de los que cuestan.',
+    costo:1800, ingresoPasivo:0),
+  CFCarta(tipo:'pasivo', emoji:'✈️', titulo:'Retiro de bienestar urgente',
+    descripcion:'Retiro de 5 días para "recargarte". \$2,200 que no tenías presupuestados.',
+    leccion:'El autocuidado es esencial — planifícalo como inversión, no como impulso.',
+    costo:2200, ingresoPasivo:0),
+  CFCarta(tipo:'pasivo', emoji:'👜', titulo:'Inversión de imagen personal',
+    descripcion:'Ropa de marca, bolso, accesorios. \$1,100 porque "la imagen vende".',
+    leccion:'La imagen importa, pero solo vende si hay sustancia detrás. No pongas el carro delante del caballo.',
+    costo:1100, ingresoPasivo:0),
 ];
 
 // ═══════════════════════════════════════════════════════════════
@@ -209,6 +262,18 @@ const _mercado = [
     descripcion:'Nueva zona industrial cerca. Tu terreno o duplex vale 30% más.',
     leccion:'La ubicación estratégica multiplica el valor de tus activos.',
     valorMercado:30),
+  CFCarta(tipo:'mercado', emoji:'🌱', titulo:'Economía en recuperación',
+    descripcion:'Los activos recuperan valor después de la corrección. Propiedades +12%.',
+    leccion:'Quien mantiene sus activos durante las crisis triunfa en la recuperación.',
+    valorMercado:12),
+  CFCarta(tipo:'mercado', emoji:'🌪️', titulo:'Crisis económica global',
+    descripcion:'Los mercados caen fuerte. Tus activos bajan 20% temporalmente.',
+    leccion:'Las crisis son el precio de entrada a la riqueza futura. Quien mantiene, gana.',
+    valorMercado:-20),
+  CFCarta(tipo:'mercado', emoji:'🏆', titulo:'Política de inversión favorable',
+    descripcion:'Incentivos fiscales para inversionistas. Tus activos suben 25% de valor.',
+    leccion:'La educación financiera te permite aprovechar cada ventana de oportunidad.',
+    valorMercado:25),
 ];
 
 // ═══════════════════════════════════════════════════════════════
@@ -306,6 +371,7 @@ class _PantallaJuegoCashflowState extends State<PantallaJuegoCashflow>
   late AnimationController _diceCtrl;
   late AnimationController _cardCtrl;
   late Animation<double> _cardAnim;
+  late AnimationController _victoriaCtrl;
   int _dadoValor = 0;
   bool _tirandoDado = false;
 
@@ -320,6 +386,9 @@ class _PantallaJuegoCashflowState extends State<PantallaJuegoCashflow>
   Map<String, Map<String, dynamic>> _otrasJugadoras = {};
   bool _mostrarLeaderboard = false;
   bool get _esMulti => widget.roomId != null;
+  String _turnoActualUid = '';
+  bool _turnoCompleto = false;
+  bool get _esMiTurno => !_esMulti || _turnoActualUid.isEmpty || _turnoActualUid == FirebaseService.uid;
 
   @override
   void initState() {
@@ -327,17 +396,19 @@ class _PantallaJuegoCashflowState extends State<PantallaJuegoCashflow>
     _diceCtrl = AnimationController(vsync: this, duration: const Duration(milliseconds: 600));
     _cardCtrl = AnimationController(vsync: this, duration: const Duration(milliseconds: 400));
     _cardAnim = Tween<double>(begin: 0, end: 1).animate(CurvedAnimation(parent: _cardCtrl, curve: Curves.easeOutBack));
+    _victoriaCtrl = AnimationController(vsync: this, duration: const Duration(milliseconds: 1800));
     _refillMazos();
-    _cargarEstado();
+    if (!_esMulti) _cargarEstado();
     if (_esMulti) _escucharRoom();
   }
 
   @override
   void dispose() {
-    _guardarEstado();
+    if (!_esMulti) _guardarEstado();
     _roomSub?.cancel();
     _diceCtrl.dispose();
     _cardCtrl.dispose();
+    _victoriaCtrl.dispose();
     super.dispose();
   }
 
@@ -353,8 +424,26 @@ class _PantallaJuegoCashflowState extends State<PantallaJuegoCashflow>
       final jugadoras = (data['jugadores'] as Map<String, dynamic>?)
           ?.map((k, v) => MapEntry(k, v as Map<String, dynamic>)) ?? {};
       jugadoras.remove(FirebaseService.uid);
-      if (mounted) setState(() => _otrasJugadoras = jugadoras);
+      final nuevoTurno = data['turnoActualUid'] as String? ?? '';
+      if (mounted) setState(() {
+        _otrasJugadoras = jugadoras;
+        // Si el turno cambió a nosotras, limpiar _turnoCompleto para poder tirar
+        if (nuevoTurno == FirebaseService.uid && nuevoTurno != _turnoActualUid) {
+          _turnoCompleto = false;
+        }
+        _turnoActualUid = nuevoTurno;
+      });
     });
+  }
+
+  Future<void> _pasarTurno() async {
+    if (!_esMulti) return;
+    // Lista ordenada de todos los UIDs (yo + las demás)
+    final todos = ([FirebaseService.uid!, ..._otrasJugadoras.keys]).toList()..sort();
+    final idx = todos.indexOf(_turnoActualUid);
+    final siguiente = todos[(idx + 1) % todos.length];
+    setState(() => _turnoCompleto = false);
+    await FirebaseService.pasarTurnoCashflow(widget.roomId!, siguiente);
   }
 
   Future<void> _sincronizarMulti() async {
@@ -378,7 +467,7 @@ class _PantallaJuegoCashflowState extends State<PantallaJuegoCashflow>
   //  PERSISTENCIA
   // ─────────────────────────────────────────
   Future<void> _guardarEstado() async {
-    if (_prof == null) return;
+    if (_esMulti || _prof == null) return;
     final prefs = await SharedPreferences.getInstance();
     await prefs.setInt('cf_prof', _profesiones.indexOf(_prof!));
     await prefs.setInt('cf_efectivo', _efectivo);
@@ -473,15 +562,17 @@ class _PantallaJuegoCashflowState extends State<PantallaJuegoCashflow>
       _posicion = 0;
       _turno = 0;
     });
+    _sincronizarMulti();
   }
 
   // ─────────────────────────────────────────
   //  TIRAR DADO
   // ─────────────────────────────────────────
   Future<void> _tirarDado() async {
-    if (_tirandoDado || _esperandoCarta) return;
+    if (_tirandoDado || _esperandoCarta || !_esMiTurno || _turnoCompleto) return;
     setState(() { _tirandoDado = true; _mensajeLog = ''; });
     _diceCtrl.forward(from: 0);
+    SoundPlayer.dado();
 
     // Animación de dado
     for (int i = 0; i < 8; i++) {
@@ -523,6 +614,7 @@ class _PantallaJuegoCashflowState extends State<PantallaJuegoCashflow>
       case EspacioTablero.payday:
         final cobro = _cashflow;
         final anteriorEfectivo = _efectivo;
+        if (cobro > 0) SoundPlayer.payday(); else SoundPlayer.pasivo();
         setState(() {
           _efectivo += cobro;
           if (cobro < 0) {
@@ -535,9 +627,11 @@ class _PantallaJuegoCashflowState extends State<PantallaJuegoCashflow>
           } else {
             _mensajeLog = '💰 ¡DÍA DE PAGO! +\$$cobro\n(Salario \$$_salario + Pasivo \$$_ingresoPasivo - Gastos \$$_totalGastos)';
           }
+          if (_esMulti) _turnoCompleto = true;
         });
         if (_esLibre && !_enPistaRapida) _escaparRueda();
         _guardarEstado();
+        _sincronizarMulti();
         break;
 
       case EspacioTablero.pequenoNegocio:
@@ -559,28 +653,40 @@ class _PantallaJuegoCashflowState extends State<PantallaJuegoCashflow>
         break;
 
       case EspacioTablero.reduccion:
+        SoundPlayer.pasivo();
         setState(() {
           _reducido = true;
           _turnosReducido = 0;
           _mensajeLog = '📉 REDUCCIÓN DE PERSONAL\nPerdes los próximos 2 cobros de sueldo. Usa tus ahorros.';
+          if (_esMulti) _turnoCompleto = true;
         });
+        _guardarEstado();
+        _sincronizarMulti();
         break;
 
       case EspacioTablero.caridad:
         final donacion = (_salario * 0.10).round();
+        SoundPlayer.venta();
         setState(() {
           _efectivo = max(0, _efectivo - donacion);
           _caridad = true;
           _mensajeLog = '❤️ CARIDAD — Donas \$$donacion (10% de tu salario).\n¡Pero obtienes DADOS DOBLES en tu próxima tirada!';
+          if (_esMulti) _turnoCompleto = true;
         });
+        _guardarEstado();
+        _sincronizarMulti();
         break;
 
       case EspacioTablero.bebe:
         final extra = 200 + _rng.nextInt(3) * 100;
+        SoundPlayer.leccion();
         setState(() {
           _gastosExtra += extra;
           _mensajeLog = '👶 ¡BEBÉ!\nTus gastos mensuales aumentan \$$extra permanentemente.\n¡Necesitas más activos ahora!';
+          if (_esMulti) _turnoCompleto = true;
         });
+        _guardarEstado();
+        _sincronizarMulti();
         break;
 
       case EspacioTablero.mercado:
@@ -592,6 +698,7 @@ class _PantallaJuegoCashflowState extends State<PantallaJuegoCashflow>
       case EspacioTablero.sueno:
         const costSueno = 50000;
         if (_efectivo >= costSueno) {
+          SoundPlayer.victoria();
           setState(() {
             _efectivo -= costSueno;
             _mensajeLog = '🏆 ¡Compraste tu sueño: $_sueno!\n¡GANASTE el juego!';
@@ -617,7 +724,10 @@ class _PantallaJuegoCashflowState extends State<PantallaJuegoCashflow>
     final carta = _cartaActual!;
 
     if (!comprar && carta.tipo != 'pasivo' && carta.tipo != 'mercado' && carta.tipo != 'bebe') {
-      setState(() { _esperandoCarta = false; _cartaActual = null; _mensajeLog = '⏩ Pasaste la oportunidad.'; });
+      setState(() {
+        _esperandoCarta = false; _cartaActual = null; _mensajeLog = '⏩ Pasaste la oportunidad.';
+        if (_esMulti) _turnoCompleto = true;
+      });
       return;
     }
 
@@ -644,6 +754,7 @@ class _PantallaJuegoCashflowState extends State<PantallaJuegoCashflow>
             valorMercado: carta.valorMercado > 0 ? carta.valorMercado : carta.costo,
             deuda: deuda > 0 ? deuda : null,
           ));
+          SoundPlayer.compra();
           setState(() {
             _mensajeLog = '✅ Compraste: ${carta.titulo}\n+\$${carta.ingresoPasivo}/mes ingreso pasivo'
                 + (pedirPrestamo ? '\n💳 Préstamo: \$$deuda | Cuota: \$$cuota/mes' : '')
@@ -663,6 +774,7 @@ class _PantallaJuegoCashflowState extends State<PantallaJuegoCashflow>
         break;
 
       case 'pasivo':
+        SoundPlayer.pasivo();
         setState(() {
           _efectivo -= carta.costo;   // puede quedar negativo → deuda
           if (carta.ingresoPasivo < 0) _pagosPasivos += carta.ingresoPasivo.abs();
@@ -679,6 +791,7 @@ class _PantallaJuegoCashflowState extends State<PantallaJuegoCashflow>
         for (final a in _activos) {
           if (a.valorMercado > 0) a.valorMercado = (a.valorMercado * (1 + pct)).round();
         }
+        if (pct > 0) SoundPlayer.correcto(); else SoundPlayer.error();
         setState(() {
           _mensajeLog = pct > 0
               ? '📊 ${carta.titulo}: Propiedades +${carta.valorMercado}%\n\n💡 ${carta.leccion}'
@@ -690,9 +803,11 @@ class _PantallaJuegoCashflowState extends State<PantallaJuegoCashflow>
     }
     _guardarEstado();
     _sincronizarMulti();
+    if (_esMulti && !_esperandoCarta) setState(() => _turnoCompleto = true);
   }
 
   void _escaparRueda() {
+    SoundPlayer.nivel();
     setState(() {
       _enPistaRapida = true;
       _posicion = 0;
@@ -704,10 +819,14 @@ class _PantallaJuegoCashflowState extends State<PantallaJuegoCashflow>
 
   void _ganarJuego() {
     setState(() => _gano = true);
+    _victoriaCtrl.repeat(reverse: true);
     _guardarEstado();
+    _sincronizarMulti();
   }
 
   Future<void> _reiniciar() async {
+    _victoriaCtrl.stop();
+    _victoriaCtrl.reset();
     final prefs = await SharedPreferences.getInstance();
     await prefs.remove('cf_prof');
     if (!mounted) return;
@@ -914,10 +1033,16 @@ class _PantallaJuegoCashflowState extends State<PantallaJuegoCashflow>
                   children: [
                     // ── Contenido principal ──────────────────────
                     Column(children: [
-                      Padding(
-                        padding: const EdgeInsets.fromLTRB(8, 6, 8, 0),
-                        child: AspectRatio(aspectRatio: 1.0, child: _buildTablero()),
-                      ),
+                      Builder(builder: (ctx) {
+                        final sz = MediaQuery.of(ctx).size;
+                        final board = min(sz.width - 16.0, sz.height * 0.50).clamp(180.0, 480.0);
+                        return Padding(
+                          padding: const EdgeInsets.fromLTRB(8, 6, 8, 0),
+                          child: Center(
+                            child: SizedBox(width: board, height: board, child: _buildTablero()),
+                          ),
+                        );
+                      }),
                       Expanded(
                         child: SingleChildScrollView(
                           padding: const EdgeInsets.fromLTRB(12, 8, 12, 8),
@@ -1278,17 +1403,36 @@ class _PantallaJuegoCashflowState extends State<PantallaJuegoCashflow>
             ),
           ]),
         ),
-        // Token del jugador (ratón)
+        // Token del jugador con animación de pulso
         if (esActual)
-          Positioned(bottom: 1, right: 2,
+          Positioned.fill(
             child: AnimatedBuilder(
               animation: _diceCtrl,
-              builder: (_, __) => _tirandoDado
-                ? Transform.rotate(
-                    angle: _diceCtrl.value * 6.28,
-                    child: Text('⚡', style: TextStyle(fontSize: size * 0.22)),
-                  )
-                : Text('🐭', style: TextStyle(fontSize: size * 0.26)),
+              builder: (_, __) {
+                if (_tirandoDado) {
+                  return Align(
+                    alignment: Alignment.bottomRight,
+                    child: Padding(
+                      padding: const EdgeInsets.all(1),
+                      child: Transform.rotate(
+                        angle: _diceCtrl.value * 6.28,
+                        child: Text('⚡', style: TextStyle(fontSize: size * 0.26)),
+                      ),
+                    ),
+                  );
+                }
+                final pulse = 0.85 + 0.15 * (_diceCtrl.isAnimating ? _diceCtrl.value : 0);
+                return Align(
+                  alignment: Alignment.bottomCenter,
+                  child: Padding(
+                    padding: const EdgeInsets.only(bottom: 1),
+                    child: Transform.scale(
+                      scale: pulse,
+                      child: Text('🐭', style: TextStyle(fontSize: size * 0.32)),
+                    ),
+                  ),
+                );
+              },
             ),
           ),
       ]),
@@ -1327,25 +1471,54 @@ class _PantallaJuegoCashflowState extends State<PantallaJuegoCashflow>
           Text('+$_dadoValor', style: const TextStyle(color: Color(0xFFFFD700), fontSize: 15, fontWeight: FontWeight.w900)),
         const SizedBox(height: 4),
         if (!_esperandoCarta && !_ofreciendoPrestamo)
-          GestureDetector(
-            onTap: _tirandoDado ? null : _tirarDado,
-            child: AnimatedContainer(
-              duration: const Duration(milliseconds: 200),
-              padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 7),
+          if (_esMulti && !_esMiTurno)
+            // No es mi turno
+            Container(
+              padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 6),
               decoration: BoxDecoration(
-                gradient: _tirandoDado
-                  ? const LinearGradient(colors: [Color(0xFF424242), Color(0xFF616161)])
-                  : const LinearGradient(colors: [Color(0xFF1B5E20), Color(0xFF4CAF50)]),
+                color: Colors.white.withValues(alpha: 0.07),
                 borderRadius: BorderRadius.circular(8),
-                border: Border.all(color: const Color(0xFFFFD700).withValues(alpha: 0.7)),
-                boxShadow: _tirandoDado ? null : [BoxShadow(color: const Color(0xFF4CAF50).withValues(alpha: 0.5), blurRadius: 8)],
+                border: Border.all(color: Colors.white24),
               ),
-              child: Text(
-                _tirandoDado ? '🎲...' : (_caridad ? '🎲×2' : '🎲 TIRAR'),
-                style: const TextStyle(color: Colors.white, fontSize: 13, fontWeight: FontWeight.w900),
+              child: const Text('⏳ Turno\ncontraria', style: TextStyle(color: Colors.white54, fontSize: 9, fontWeight: FontWeight.w700), textAlign: TextAlign.center),
+            )
+          else if (_esMulti && _turnoCompleto)
+            // Mi turno terminó, esperar confirmación
+            GestureDetector(
+              onTap: _pasarTurno,
+              child: AnimatedContainer(
+                duration: const Duration(milliseconds: 200),
+                padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 7),
+                decoration: BoxDecoration(
+                  gradient: const LinearGradient(colors: [Color(0xFF0D47A1), Color(0xFF1976D2)]),
+                  borderRadius: BorderRadius.circular(8),
+                  border: Border.all(color: const Color(0xFFFFD700).withValues(alpha: 0.7)),
+                  boxShadow: [BoxShadow(color: const Color(0xFF1976D2).withValues(alpha: 0.5), blurRadius: 8)],
+                ),
+                child: const Text('✅ PASAR\nTURNO', style: TextStyle(color: Colors.white, fontSize: 10, fontWeight: FontWeight.w900), textAlign: TextAlign.center),
+              ),
+            )
+          else
+            // Mi turno activo — botón dado normal
+            GestureDetector(
+              onTap: _tirandoDado ? null : _tirarDado,
+              child: AnimatedContainer(
+                duration: const Duration(milliseconds: 200),
+                padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 7),
+                decoration: BoxDecoration(
+                  gradient: _tirandoDado
+                    ? const LinearGradient(colors: [Color(0xFF424242), Color(0xFF616161)])
+                    : const LinearGradient(colors: [Color(0xFF1B5E20), Color(0xFF4CAF50)]),
+                  borderRadius: BorderRadius.circular(8),
+                  border: Border.all(color: const Color(0xFFFFD700).withValues(alpha: 0.7)),
+                  boxShadow: _tirandoDado ? null : [BoxShadow(color: const Color(0xFF4CAF50).withValues(alpha: 0.5), blurRadius: 8)],
+                ),
+                child: Text(
+                  _tirandoDado ? '🎲...' : (_caridad ? '🎲×2' : '🎲 TIRAR'),
+                  style: const TextStyle(color: Colors.white, fontSize: 13, fontWeight: FontWeight.w900),
+                ),
               ),
             ),
-          ),
         const SizedBox(height: 5),
         Text('${(pct * 100).toStringAsFixed(0)}% libre',
           style: TextStyle(
@@ -1601,30 +1774,97 @@ class _PantallaJuegoCashflowState extends State<PantallaJuegoCashflow>
   // ─────────────────────────────────────────
   Widget _buildEstadoFinanciero() {
     final p = _prof!;
+    final totalIngresos = _salario + _ingresoPasivo;
+    final pct = _pctLibertad;
     return SingleChildScrollView(
       padding: const EdgeInsets.all(16),
       child: Column(children: [
+        // ── Barra de libertad financiera
+        Container(
+          padding: const EdgeInsets.all(16),
+          decoration: BoxDecoration(
+            color: const Color(0xFF0A2A0B),
+            borderRadius: BorderRadius.circular(16),
+            border: Border.all(color: const Color(0xFFFFD700).withValues(alpha: 0.4)),
+          ),
+          child: Column(children: [
+            Row(mainAxisAlignment: MainAxisAlignment.spaceBetween, children: [
+              const Text('🎯 LIBERTAD FINANCIERA', style: TextStyle(color: Color(0xFFFFD700), fontWeight: FontWeight.w900, fontSize: 12, letterSpacing: 0.5)),
+              Text('${(pct * 100).toStringAsFixed(1)}%', style: TextStyle(
+                color: pct >= 1 ? AppColors.neonVerde : const Color(0xFFFFD700),
+                fontWeight: FontWeight.w900, fontSize: 16,
+              )),
+            ]),
+            const SizedBox(height: 10),
+            LayoutBuilder(builder: (_, c) => Stack(children: [
+              Container(height: 12, width: c.maxWidth, decoration: BoxDecoration(
+                color: Colors.white12, borderRadius: BorderRadius.circular(6))),
+              AnimatedContainer(
+                duration: const Duration(milliseconds: 800),
+                height: 12,
+                width: (c.maxWidth * pct).clamp(4.0, c.maxWidth),
+                decoration: BoxDecoration(
+                  gradient: LinearGradient(
+                    colors: pct >= 1
+                      ? [const Color(0xFF2E7D32), const Color(0xFF4CAF50)]
+                      : [const Color(0xFF1565C0), const Color(0xFF7B1FA2)],
+                  ),
+                  borderRadius: BorderRadius.circular(6),
+                  boxShadow: [BoxShadow(
+                    color: (pct >= 1 ? AppColors.neonVerde : AppColors.neonMorado).withValues(alpha: 0.6),
+                    blurRadius: 8,
+                  )],
+                ),
+              ),
+            ])),
+            const SizedBox(height: 8),
+            Text(
+              pct >= 1
+                ? '🏆 ¡Logrado! Tu pasivo supera todos tus gastos'
+                : 'Pasivo \$$_ingresoPasivo cubre ${(pct * 100).toStringAsFixed(0)}% de \$$_totalGastos en gastos',
+              style: TextStyle(color: pct >= 1 ? AppColors.neonVerde : Colors.white54, fontSize: 11, height: 1.3),
+              textAlign: TextAlign.center,
+            ),
+          ]),
+        ),
+        const SizedBox(height: 12),
+
+        // ── Barras de flujo mensual
         GlassCard(
           borderColor: AppColors.neonVerde.withValues(alpha: 0.4),
           child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-            const Text('📋 ESTADO FINANCIERO', style: AppTextStyles.sectionTitle),
-            const SizedBox(height: 12),
-            const Text('INGRESOS', style: TextStyle(color: AppColors.neonVerde, fontWeight: FontWeight.w800, fontSize: 12, letterSpacing: 1)),
+            const Text('📋 FLUJO MENSUAL', style: AppTextStyles.sectionTitle),
+            const SizedBox(height: 14),
+            const Text('INGRESOS', style: TextStyle(color: AppColors.neonVerde, fontWeight: FontWeight.w800, fontSize: 11, letterSpacing: 1)),
+            const SizedBox(height: 8),
+            _barraComparativa('💵 Salario', p.salario, max(totalIngresos, 1), AppColors.neonVerde),
             const SizedBox(height: 6),
-            _filaInfo('Salario', '\$${p.salario}'),
-            _filaInfo('Ingreso Pasivo Total', '\$$_ingresoPasivo'),
-            _filaInfo('TOTAL INGRESOS', '\${_salario + _ingresoPasivo}', bold: true),
+            _barraComparativa('📈 Ingreso Pasivo', _ingresoPasivo, max(totalIngresos, 1), AppColors.neonAzul),
+            _filaInfo('TOTAL INGRESOS', '\$$totalIngresos', bold: true),
             const Divider(color: AppColors.textoGris, height: 20),
-            const Text('GASTOS', style: TextStyle(color: AppColors.neonRosa, fontWeight: FontWeight.w800, fontSize: 12, letterSpacing: 1)),
-            const SizedBox(height: 6),
-            _filaInfo('Impuestos', '\$${p.impuestos}'),
-            _filaInfo('Hipoteca / Renta', '\$${p.hipoteca}'),
-            _filaInfo('Pago de Auto', '\$${p.pagoAuto}'),
-            _filaInfo('Tarjeta de Crédito', '\$${p.tarjeta}'),
-            _filaInfo('Préstamo Estudiantil', '\$${p.prestamo}'),
-            _filaInfo('Otros Gastos', '\$${p.gastoOtros}'),
-            if (_gastosExtra > 0) _filaInfo('Bebés / Extras', '\$$_gastosExtra'),
-            if (_pagosPasivos > 0) _filaInfo('Cuotas de Préstamos', '\$$_pagosPasivos'),
+            const Text('GASTOS', style: TextStyle(color: AppColors.neonRosa, fontWeight: FontWeight.w800, fontSize: 11, letterSpacing: 1)),
+            const SizedBox(height: 8),
+            _barraComparativa('🏛️ Impuestos', p.impuestos, max(_totalGastos, 1), AppColors.neonRosa),
+            const SizedBox(height: 4),
+            _barraComparativa('🏠 Hipoteca/Renta', p.hipoteca, max(_totalGastos, 1), AppColors.neonRosa),
+            const SizedBox(height: 4),
+            _barraComparativa('🚗 Auto', p.pagoAuto, max(_totalGastos, 1), Colors.orange),
+            const SizedBox(height: 4),
+            _barraComparativa('💳 Tarjeta', p.tarjeta, max(_totalGastos, 1), Colors.orange),
+            if (p.prestamo > 0) ...[
+              const SizedBox(height: 4),
+              _barraComparativa('🎓 Préstamo est.', p.prestamo, max(_totalGastos, 1), Colors.deepOrange),
+            ],
+            const SizedBox(height: 4),
+            _barraComparativa('📦 Otros', p.gastoOtros, max(_totalGastos, 1), Colors.redAccent),
+            if (_gastosExtra > 0) ...[
+              const SizedBox(height: 4),
+              _barraComparativa('👶 Bebés/Extras', _gastosExtra, max(_totalGastos, 1), Colors.pink),
+            ],
+            if (_pagosPasivos > 0) ...[
+              const SizedBox(height: 4),
+              _barraComparativa('🏦 Cuotas préstamos', _pagosPasivos, max(_totalGastos, 1), Colors.red),
+            ],
             _filaInfo('TOTAL GASTOS', '\$$_totalGastos', bold: true),
             const Divider(color: AppColors.textoGris, height: 20),
             _filaInfo('💰 CASHFLOW MENSUAL', '\$$_cashflow', bold: true,
@@ -1676,54 +1916,208 @@ class _PantallaJuegoCashflowState extends State<PantallaJuegoCashflow>
   // ─────────────────────────────────────────
   Widget _buildVictoria() {
     return Scaffold(
-      backgroundColor: AppColors.fondoOscuro,
+      backgroundColor: const Color(0xFF070B14),
       body: SafeArea(
-        child: Center(
-          child: SingleChildScrollView(
-            padding: const EdgeInsets.all(24),
-            child: Column(mainAxisAlignment: MainAxisAlignment.center, children: [
-              const Text('🏆', style: TextStyle(fontSize: 80)),
-              const SizedBox(height: 16),
-              const Text('¡GANASTE!', style: TextStyle(color: AppColors.neonAmarillo, fontSize: 32, fontWeight: FontWeight.w900)),
-              const SizedBox(height: 8),
-              Text('Cumpliste tu sueño: $_sueno', style: AppTextStyles.body, textAlign: TextAlign.center),
-              const SizedBox(height: 20),
-              GlassCard(borderColor: AppColors.neonVerde.withValues(alpha: 0.5), child: Column(children: [
-                const Text('📊 Resumen Final', style: AppTextStyles.cardTitle),
-                const SizedBox(height: 12),
-                _filaInfo('Profesión', '${_prof!.emoji} ${_prof!.nombre}'),
-                _filaInfo('Activos adquiridos', '${_activos.length}'),
-                _filaInfo('Ingreso Pasivo', '\$$_ingresoPasivo/mes'),
-                _filaInfo('Gastos Totales', '\$$_totalGastos/mes'),
-                _filaInfo('Excedente mensual', '\${_ingresoPasivo - _totalGastos}/mes'),
-                _filaInfo('Turnos jugados', '$_turno'),
-              ])),
-              const SizedBox(height: 20),
-              const Text('💡 ¿Qué aprendiste?', style: AppTextStyles.sectionTitle),
-              const SizedBox(height: 8),
-              GlassCard(borderColor: AppColors.neonAmarillo.withValues(alpha: 0.3), child: const Column(children: [
-                Text('• Los activos generan dinero mientras duermes', style: AppTextStyles.body),
-                SizedBox(height: 6),
-                Text('• Los pasivos te sacan dinero cada mes', style: AppTextStyles.body),
-                SizedBox(height: 6),
-                Text('• Libertad financiera = Ingreso Pasivo ≥ Gastos', style: AppTextStyles.body),
-                SizedBox(height: 6),
-                Text('• La educación financiera es el mejor activo', style: AppTextStyles.body),
-              ])),
-              const SizedBox(height: 24),
-              SizedBox(width: double.infinity, child: NeonButton(
-                label: 'Jugar de Nuevo', emoji: '🔄',
-                onPressed: _reiniciar, gradientColors: AppColors.gradienteGreen,
-              )),
-              const SizedBox(height: 12),
-              TextButton(onPressed: () => Navigator.pop(context),
-                child: const Text('Volver a la Academia', style: TextStyle(color: AppColors.textoGris))),
-            ]),
-          ),
+        child: AnimatedBuilder(
+          animation: _victoriaCtrl,
+          builder: (context, _) {
+            final pulse = 0.92 + 0.08 * _victoriaCtrl.value;
+            final glow  = 0.35 + 0.55 * _victoriaCtrl.value;
+            return Stack(
+              children: [
+                // Estrellas animadas de fondo
+                ..._buildEstrellasFondo(),
+                // Scroll principal
+                SingleChildScrollView(
+                  padding: const EdgeInsets.symmetric(horizontal: 22, vertical: 16),
+                  child: Column(children: [
+                    const SizedBox(height: 16),
+                    // Trofeo animado con glow
+                    Transform.scale(
+                      scale: pulse,
+                      child: Container(
+                        width: 140, height: 140,
+                        decoration: BoxDecoration(
+                          shape: BoxShape.circle,
+                          gradient: const RadialGradient(
+                            colors: [Color(0xFFFFD700), Color(0xFFFF8C00), Color(0xFF8B6914)],
+                          ),
+                          boxShadow: [BoxShadow(
+                            color: const Color(0xFFFFD700).withValues(alpha: glow),
+                            blurRadius: 50, spreadRadius: 12,
+                          )],
+                        ),
+                        child: const Center(child: Text('🏆', style: TextStyle(fontSize: 72))),
+                      ),
+                    ),
+                    const SizedBox(height: 22),
+                    // Título con gradiente
+                    ShaderMask(
+                      shaderCallback: (bounds) => const LinearGradient(
+                        colors: [Color(0xFFFFD700), Color(0xFFFFFFFF), Color(0xFFFFD700)],
+                      ).createShader(bounds),
+                      child: const Text('¡LIBERTAD\nFINANCIERA!',
+                        style: TextStyle(color: Colors.white, fontSize: 34, fontWeight: FontWeight.w900, height: 1.1, letterSpacing: 1),
+                        textAlign: TextAlign.center,
+                      ),
+                    ),
+                    const SizedBox(height: 10),
+                    Text('Cumpliste tu sueño: $_sueno',
+                      style: const TextStyle(color: Colors.white60, fontSize: 15, height: 1.4),
+                      textAlign: TextAlign.center,
+                    ),
+                    const SizedBox(height: 24),
+                    // Stats en 3 tarjetas
+                    Row(children: [
+                      _victoriaStatCard('📈', 'Pasivo/mes', '\$$_ingresoPasivo', const Color(0xFF4CAF50)),
+                      const SizedBox(width: 8),
+                      _victoriaStatCard('🎯', '% Libertad', '${(_pctLibertad * 100).toStringAsFixed(0)}%', const Color(0xFFFFD700)),
+                      const SizedBox(width: 8),
+                      _victoriaStatCard('🏦', 'Activos', '${_activos.length}', const Color(0xFF2196F3)),
+                    ]),
+                    const SizedBox(height: 16),
+                    // Resumen detallado
+                    Container(
+                      width: double.infinity,
+                      padding: const EdgeInsets.all(20),
+                      decoration: BoxDecoration(
+                        color: const Color(0xFF0D1F0E),
+                        borderRadius: BorderRadius.circular(20),
+                        border: Border.all(color: const Color(0xFFFFD700).withValues(alpha: 0.35), width: 1.5),
+                      ),
+                      child: Column(children: [
+                        const Text('📊 Tu Camino a la Libertad', style: TextStyle(color: Color(0xFFFFD700), fontWeight: FontWeight.w900, fontSize: 14, letterSpacing: 0.5)),
+                        const SizedBox(height: 14),
+                        _victoriaFila('👩 Profesión', '${_prof!.emoji} ${_prof!.nombre}'),
+                        _victoriaFila('🎲 Turnos jugados', '$_turno turnos'),
+                        _victoriaFila('💵 Salario inicial', '\$${_prof!.salario}/mes'),
+                        _victoriaFila('📈 Ingreso pasivo final', '\$$_ingresoPasivo/mes'),
+                        _victoriaFila('💸 Gastos mensuales', '\$$_totalGastos/mes'),
+                        _victoriaFila('✨ Excedente mensual', '\$${_ingresoPasivo - _totalGastos}/mes'),
+                        const SizedBox(height: 10),
+                        Container(
+                          padding: const EdgeInsets.all(12),
+                          decoration: BoxDecoration(
+                            color: const Color(0xFF4CAF50).withValues(alpha: 0.1),
+                            borderRadius: BorderRadius.circular(12),
+                            border: Border.all(color: const Color(0xFF4CAF50).withValues(alpha: 0.3)),
+                          ),
+                          child: const Row(children: [
+                            Text('🚀', style: TextStyle(fontSize: 22)),
+                            SizedBox(width: 10),
+                            Expanded(child: Text(
+                              '¡Tu ingreso pasivo supera tus gastos!\nEso es la LIBERTAD FINANCIERA real.',
+                              style: TextStyle(color: Color(0xFF81C784), fontSize: 12, height: 1.4),
+                            )),
+                          ]),
+                        ),
+                      ]),
+                    ),
+                    const SizedBox(height: 14),
+                    // Lecciones aprendidas
+                    Container(
+                      padding: const EdgeInsets.all(16),
+                      decoration: BoxDecoration(
+                        color: const Color(0xFF1A0A3C),
+                        borderRadius: BorderRadius.circular(16),
+                        border: Border.all(color: const Color(0xFF9C27B0).withValues(alpha: 0.35)),
+                      ),
+                      child: Column(children: [
+                        const Text('💡 Lo que aprendiste hoy', style: TextStyle(color: Color(0xFFCE93D8), fontWeight: FontWeight.w900, fontSize: 13, letterSpacing: 0.5)),
+                        const SizedBox(height: 12),
+                        _leccionItem('Los activos ponen dinero en tu bolsillo sin que trabajes'),
+                        _leccionItem('Los pasivos te quitan dinero cada mes, aunque no lo veas'),
+                        _leccionItem('Libertad = Ingreso Pasivo ≥ Gastos Totales'),
+                        _leccionItem('El apalancamiento inteligente acelera la riqueza'),
+                        _leccionItem('Tu red y tu conocimiento son los mejores activos'),
+                      ]),
+                    ),
+                    const SizedBox(height: 24),
+                    // Botón principal
+                    GestureDetector(
+                      onTap: _reiniciar,
+                      child: Container(
+                        width: double.infinity,
+                        padding: const EdgeInsets.symmetric(vertical: 16),
+                        decoration: BoxDecoration(
+                          gradient: const LinearGradient(colors: [Color(0xFF1B5E20), Color(0xFF4CAF50)]),
+                          borderRadius: BorderRadius.circular(18),
+                          border: Border.all(color: const Color(0xFFFFD700), width: 1.5),
+                          boxShadow: [BoxShadow(color: const Color(0xFF4CAF50).withValues(alpha: 0.45), blurRadius: 16)],
+                        ),
+                        child: const Center(child: Text('🔄 Jugar de Nuevo', style: TextStyle(color: Colors.white, fontSize: 16, fontWeight: FontWeight.w900))),
+                      ),
+                    ),
+                    const SizedBox(height: 10),
+                    TextButton(
+                      onPressed: () => Navigator.pop(context),
+                      child: const Text('← Volver a Juegos', style: TextStyle(color: Colors.white38, fontSize: 13)),
+                    ),
+                    const SizedBox(height: 20),
+                  ]),
+                ),
+              ],
+            );
+          },
         ),
       ),
     );
   }
+
+  List<Widget> _buildEstrellasFondo() {
+    const posiciones = [
+      [30.0, 40.0], [310.0, 55.0], [175.0, 20.0],
+      [70.0, 130.0], [340.0, 145.0], [45.0, 210.0],
+      [370.0, 230.0], [140.0, 190.0], [250.0, 270.0],
+      [200.0, 70.0], [100.0, 290.0], [300.0, 320.0],
+    ];
+    return posiciones.asMap().entries.map((e) {
+      final offset  = (e.key * 0.25) % 1.0;
+      final animVal = (_victoriaCtrl.value + offset) % 1.0;
+      final opacity = (animVal < 0.5 ? animVal * 2 : (1 - animVal) * 2).clamp(0.0, 1.0);
+      final emojis  = ['⭐', '✨', '🌟', '💫'];
+      final emoji   = emojis[e.key % emojis.length];
+      return Positioned(
+        left: e.value[0],
+        top:  e.value[1],
+        child: Opacity(opacity: opacity, child: Text(emoji, style: const TextStyle(fontSize: 14))),
+      );
+    }).toList();
+  }
+
+  Widget _victoriaStatCard(String emoji, String label, String valor, Color color) => Expanded(
+    child: Container(
+      padding: const EdgeInsets.all(12),
+      decoration: BoxDecoration(
+        color: color.withValues(alpha: 0.1),
+        borderRadius: BorderRadius.circular(14),
+        border: Border.all(color: color.withValues(alpha: 0.4)),
+      ),
+      child: Column(children: [
+        Text(emoji, style: const TextStyle(fontSize: 22)),
+        const SizedBox(height: 4),
+        Text(valor, style: TextStyle(color: color, fontWeight: FontWeight.w900, fontSize: 15)),
+        const SizedBox(height: 2),
+        Text(label, style: const TextStyle(color: Colors.white54, fontSize: 9), textAlign: TextAlign.center),
+      ]),
+    ),
+  );
+
+  Widget _victoriaFila(String label, String valor) => Padding(
+    padding: const EdgeInsets.symmetric(vertical: 4),
+    child: Row(mainAxisAlignment: MainAxisAlignment.spaceBetween, children: [
+      Text(label, style: const TextStyle(color: Colors.white54, fontSize: 12)),
+      Text(valor, style: const TextStyle(color: Colors.white, fontWeight: FontWeight.w700, fontSize: 12)),
+    ]),
+  );
+
+  Widget _leccionItem(String texto) => Padding(
+    padding: const EdgeInsets.symmetric(vertical: 3),
+    child: Row(crossAxisAlignment: CrossAxisAlignment.start, children: [
+      const Text('✓ ', style: TextStyle(color: Color(0xFF81C784), fontWeight: FontWeight.w900, fontSize: 13)),
+      Expanded(child: Text(texto, style: const TextStyle(color: Colors.white70, fontSize: 12, height: 1.4))),
+    ]),
+  );
 
   // ─────────────────────────────────────────
   //  PRÉSTAMO DE EMERGENCIA (cuando efectivo < 0)
@@ -1765,6 +2159,30 @@ class _PantallaJuegoCashflowState extends State<PantallaJuegoCashflow>
   // ─────────────────────────────────────────
   //  HELPERS
   // ─────────────────────────────────────────
+  Widget _barraComparativa(String label, int valor, int maximo, Color color) {
+    final pct = (valor / maximo).clamp(0.0, 1.0);
+    return Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+      Row(mainAxisAlignment: MainAxisAlignment.spaceBetween, children: [
+        Text(label, style: const TextStyle(color: Colors.white60, fontSize: 11)),
+        Text('\$$valor', style: TextStyle(color: color, fontWeight: FontWeight.w700, fontSize: 11)),
+      ]),
+      const SizedBox(height: 3),
+      LayoutBuilder(builder: (_, c) => Stack(children: [
+        Container(height: 5, width: c.maxWidth, decoration: BoxDecoration(
+          color: Colors.white12, borderRadius: BorderRadius.circular(3))),
+        Container(
+          height: 5,
+          width: (c.maxWidth * pct).clamp(2.0, c.maxWidth),
+          decoration: BoxDecoration(
+            color: color,
+            borderRadius: BorderRadius.circular(3),
+            boxShadow: [BoxShadow(color: color.withValues(alpha: 0.5), blurRadius: 4)],
+          ),
+        ),
+      ])),
+    ]);
+  }
+
   (Color, String) _cartaColor(String tipo) => switch (tipo) {
     'pequeno' => (AppColors.neonAzul,    '💼 PEQUEÑO NEGOCIO'),
     'grande'  => (AppColors.neonMorado,  '🏢 GRAN NEGOCIO'),

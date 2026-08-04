@@ -44,18 +44,23 @@ class _PantallaCashflowLobbyState extends State<PantallaCashflowLobby> {
     final apodo = _apodoCtrl.text.trim();
     if (apodo.isEmpty) { setState(() => _error = 'Ingresa tu nombre'); return; }
     setState(() { _cargando = true; _error = ''; });
-    await FirebaseService.signInAnonymously(apodo, FirebaseService.avatar);
-    final res = await FirebaseService.createCashflowRoom();
-    if (!mounted) return;
-    if (res.containsKey('error')) {
-      setState(() { _cargando = false; _error = res['error'] as String; });
-      return;
+    try {
+      await FirebaseService.signInAnonymously(apodo, FirebaseService.avatar);
+      final res = await FirebaseService.createCashflowRoom();
+      if (!mounted) return;
+      if (res.containsKey('error')) {
+        setState(() { _cargando = false; _error = res['error'] as String; });
+        return;
+      }
+      _roomId = res['roomId'] as String;
+      _codigo = res['codigo'] as String;
+      _esHost = true;
+      _escucharSala();
+      setState(() { _fase = 'lobby'; _cargando = false; });
+    } catch (e) {
+      if (!mounted) return;
+      setState(() { _cargando = false; _error = 'Error inesperado: $e'; });
     }
-    _roomId = res['roomId'] as String;
-    _codigo = res['codigo'] as String;
-    _esHost = true;
-    _escucharSala();
-    setState(() { _fase = 'lobby'; _cargando = false; });
   }
 
   // ─── Unirse a sala ───────────────────────────────────────────
@@ -63,7 +68,7 @@ class _PantallaCashflowLobbyState extends State<PantallaCashflowLobby> {
     final apodo = _apodoCtrl.text.trim();
     final cod   = _codigoCtrl.text.trim().toUpperCase();
     if (apodo.isEmpty) { setState(() => _error = 'Ingresa tu nombre'); return; }
-    if (cod.length < 4) { setState(() => _error = 'Ingresa el código de la sala (6 caracteres)'); return; }
+    if (cod.length < 6) { setState(() => _error = 'El código debe tener 6 caracteres'); return; }
     setState(() { _cargando = true; _error = ''; });
     await FirebaseService.signInAnonymously(apodo, FirebaseService.avatar);
     final res = await FirebaseService.joinCashflowRoom(cod);
@@ -86,14 +91,25 @@ class _PantallaCashflowLobbyState extends State<PantallaCashflowLobby> {
       setState(() => _error = 'No se pudo conectar a Firebase.');
       return;
     }
-    _roomSub = stream.listen((snap) {
-      if (!snap.exists || !mounted) return;
-      final data = snap.data()!;
-      final jugadoras = (data['jugadores'] as Map<String, dynamic>?)
-          ?.map((k, v) => MapEntry(k, v as Map<String, dynamic>)) ?? {};
-      setState(() => _jugadoras = jugadoras);
-      if (data['estado'] == 'jugando') _lanzarJuego();
-    });
+    _roomSub = stream.listen(
+      (snap) {
+        if (!snap.exists || !mounted) return;
+        final data = snap.data()!;
+        final jugadoras = (data['jugadores'] as Map<String, dynamic>?)
+            ?.map((k, v) => MapEntry(k, v as Map<String, dynamic>)) ?? {};
+        setState(() => _jugadoras = jugadoras);
+        if (data['estado'] == 'jugando') _lanzarJuego();
+      },
+      onError: (e) {
+        if (!mounted) return;
+        final msg = e.toString();
+        if (msg.contains('PERMISSION_DENIED') || msg.contains('permission-denied')) {
+          setState(() => _error = 'Sin permisos de lectura en Firebase. Ejecuta: firebase deploy --only firestore:rules');
+        } else {
+          setState(() => _error = 'Error en tiempo real: $msg');
+        }
+      },
+    );
   }
 
   // ─── Iniciar (solo host) ─────────────────────────────────────
@@ -212,7 +228,7 @@ class _PantallaCashflowLobbyState extends State<PantallaCashflowLobby> {
             border: Border.all(color: Colors.white.withValues(alpha: 0.08)),
           ),
           child: const Text(
-            '💡 El multijugador requiere conexión a internet. Si el botón no funciona, verifica que Firebase tenga "Anonymous Authentication" activada en Firebase Console → Authentication → Sign-in method.',
+            '💡 Requiere conexión a internet. Funciona en web, Android e iPhone.',
             style: TextStyle(color: Colors.white38, fontSize: 10, height: 1.5),
           ),
         ),

@@ -34,6 +34,8 @@ class PantallaDashboard extends StatelessWidget {
                     _buildCashflowChart(app),
                     const SizedBox(height: 20),
                   ],
+                  _buildBibliotecaProgress(app),
+                  const SizedBox(height: 20),
                   _buildStocksPreview(app),
                   const SizedBox(height: 20),
                   _buildTransactionHistory(context, app),
@@ -483,6 +485,78 @@ class PantallaDashboard extends StatelessWidget {
           '${puntos.length} registros de cashflow',
           style: AppTextStyles.caption,
           textAlign: TextAlign.center,
+        ),
+      ],
+    );
+  }
+
+  // ─────────────────────────────────────────────
+  //  BIBLIOTECA PROGRESS
+  // ─────────────────────────────────────────────
+  Widget _buildBibliotecaProgress(AppProvider app) {
+    final total = app.libros.length;
+    final completados = app.librosCompletados;
+    final enProgreso = app.librosEnProgreso;
+    final pct = total == 0 ? 0.0 : (completados / total).clamp(0.0, 1.0);
+
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        const Text('📚 Biblioteca', style: AppTextStyles.sectionTitle),
+        const SizedBox(height: 12),
+        GlassCard(
+          borderColor: AppColors.neonAzul.withValues(alpha: 0.35),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Row(
+                children: [
+                  Expanded(
+                    child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+                      Text(
+                        '$completados de $total libros leídos',
+                        style: const TextStyle(color: AppColors.textoBlanco, fontSize: 14, fontWeight: FontWeight.w700),
+                      ),
+                      const SizedBox(height: 2),
+                      Text(
+                        enProgreso > 0 ? '$enProgreso en progreso' : 'Comienza un libro en Academia',
+                        style: AppTextStyles.caption,
+                      ),
+                    ]),
+                  ),
+                  Container(
+                    padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+                    decoration: BoxDecoration(
+                      color: AppColors.neonAzul.withValues(alpha: 0.15),
+                      borderRadius: BorderRadius.circular(20),
+                      border: Border.all(color: AppColors.neonAzul.withValues(alpha: 0.4)),
+                    ),
+                    child: Text(
+                      '${(pct * 100).toStringAsFixed(0)}%',
+                      style: const TextStyle(color: AppColors.neonAzul, fontSize: 14, fontWeight: FontWeight.w900),
+                    ),
+                  ),
+                ],
+              ),
+              const SizedBox(height: 12),
+              LayoutBuilder(
+                builder: (_, c) => Stack(children: [
+                  Container(height: 10, width: c.maxWidth,
+                      decoration: BoxDecoration(color: AppColors.fondoCardClaro, borderRadius: BorderRadius.circular(5))),
+                  AnimatedContainer(
+                    duration: const Duration(milliseconds: 800), curve: Curves.easeOutCubic,
+                    height: 10,
+                    width: pct <= 0 ? 0 : (c.maxWidth * pct).clamp(6.0, c.maxWidth),
+                    decoration: BoxDecoration(
+                      gradient: const LinearGradient(colors: [Color(0xFF0072FF), Color(0xFF00C6FF)]),
+                      borderRadius: BorderRadius.circular(5),
+                      boxShadow: [BoxShadow(color: AppColors.neonAzul.withValues(alpha: 0.5), blurRadius: 6)],
+                    ),
+                  ),
+                ]),
+              ),
+            ],
+          ),
         ),
       ],
     );

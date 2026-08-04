@@ -7,6 +7,7 @@ import 'package:flutter/services.dart';
 import '../models/imperio_model.dart';
 import '../services/firebase_service.dart';
 import '../theme.dart';
+import '../utils/sound_player.dart';
 
 class PantallaSalaMulti extends StatefulWidget {
   final String salaId;
@@ -171,6 +172,7 @@ class _PantallaSalaMultiState extends State<PantallaSalaMulti>
       _segundosRestantes = dur.clamp(0, _durMin * 60);
       _terminaEn = terminaEn ?? DateTime.now().add(Duration(minutes: _durMin));
     });
+    SoundPlayer.leccion(); // ¡La partida comienza!
     _iniciarTicker();
     _iniciarContador();
     // Sincronizar scores cada 5 segundos (solo Firebase)
@@ -222,7 +224,8 @@ class _PantallaSalaMultiState extends State<PantallaSalaMulti>
     final nivel = nivelImperio(_totalGanado);
     await FirebaseService.updateLeaderboard(_totalGanado, nivel);
     _confettiCtrl.forward();
-    if (mounted) setState(() => _fase = 'terminada');
+    SoundPlayer.victoria();
+    if (mounted) setState(() { _fase = 'terminada'; _chatVisible = false; });
   }
 
   // ─── Comprar negocio ─────────────────────────────────────────
@@ -231,9 +234,11 @@ class _PantallaSalaMultiState extends State<PantallaSalaMulti>
     final costo = n.costoSiguiente;
     if (_dinero < costo) {
       HapticFeedback.heavyImpact();
+      SoundPlayer.error();
       return;
     }
     HapticFeedback.lightImpact();
+    SoundPlayer.compra();
     setState(() {
       _dinero -= costo;
       _negocios[idx] = n.copyWith(nivel: n.nivel + 1);
@@ -248,7 +253,25 @@ class _PantallaSalaMultiState extends State<PantallaSalaMulti>
     final txt = _chatCtrl.text.trim();
     if (txt.isEmpty) return;
     _chatCtrl.clear();
-    await FirebaseService.sendMessage(widget.salaId, txt);
+    if (kFirebaseEnabled && !_esLocal && FirebaseService.uid != null) {
+      await FirebaseService.sendMessage(widget.salaId, txt);
+    } else {
+      // Modo local/web: agregar el mensaje directamente al estado local
+      setState(() {
+        _mensajes.add({
+          'uid':         _miUid,
+          'apodo':       _miApodo,
+          'avatarIndex': _miAvatar,
+          'texto':       txt,
+        });
+      });
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        if (_chatScroll.hasClients) _chatScroll.animateTo(
+          _chatScroll.position.maxScrollExtent,
+          duration: const Duration(milliseconds: 200), curve: Curves.easeOut,
+        );
+      });
+    }
   }
 
   void _abrirChat() {
@@ -274,7 +297,7 @@ class _PantallaSalaMultiState extends State<PantallaSalaMulti>
       child: Scaffold(
         backgroundColor: AppColors.fondoOscuro,
         body: SafeArea(child: _buildBody()),
-        floatingActionButton: _fase == 'jugando' ? _buildChatFab() : null,
+        floatingActionButton: (_fase != 'terminada' && !_chatVisible) ? _buildChatFab() : null,
       ),
     );
   }
@@ -894,37 +917,48 @@ class _PantallaSalaMultiState extends State<PantallaSalaMulti>
             },
           )),
       // Input
-      Container(
-        padding: const EdgeInsets.fromLTRB(12, 8, 12, 16),
+      SafeArea(
+        top: false,
+        child: Container(
+        padding: const EdgeInsets.fromLTRB(12, 4, 12, 12),
         color: AppColors.fondoCard,
-        child: Row(children: [
-          Expanded(child: TextField(
-            controller: _chatCtrl,
-            style: const TextStyle(color: Colors.white),
-            maxLength: 80,
-            textCapitalization: TextCapitalization.sentences,
-            decoration: InputDecoration(
-              hintText: 'Escribe algo...',
-              hintStyle: const TextStyle(color: Colors.white38),
-              filled: true, fillColor: AppColors.fondoOscuro,
-              counterText: '',
-              border: OutlineInputBorder(borderRadius: BorderRadius.circular(24), borderSide: BorderSide.none),
-              contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
+        child: Column(mainAxisSize: MainAxisSize.min, children: [
+          if (_esLocal || !kFirebaseEnabled)
+            Padding(
+              padding: const EdgeInsets.only(bottom: 6),
+              child: Text('💡 Modo sin conexión — solo tú ves estos mensajes',
+                style: TextStyle(color: Colors.white.withValues(alpha: 0.4), fontSize: 11),
+                textAlign: TextAlign.center),
             ),
-            onSubmitted: (_) => _enviarMensaje(),
-          )),
-          const SizedBox(width: 8),
-          GestureDetector(
-            onTap: _enviarMensaje,
-            child: Container(
-              width: 44, height: 44,
-              decoration: BoxDecoration(color: AppColors.neonMorado, shape: BoxShape.circle,
-                boxShadow: [BoxShadow(color: AppColors.neonMorado.withValues(alpha: 0.4), blurRadius: 8)]),
-              child: const Icon(Icons.send, color: Colors.white, size: 20),
+          Row(children: [
+            Expanded(child: TextField(
+              controller: _chatCtrl,
+              style: const TextStyle(color: Colors.white),
+              maxLength: 80,
+              textCapitalization: TextCapitalization.sentences,
+              decoration: InputDecoration(
+                hintText: 'Escribe algo...',
+                hintStyle: const TextStyle(color: Colors.white38),
+                filled: true, fillColor: AppColors.fondoOscuro,
+                counterText: '',
+                border: OutlineInputBorder(borderRadius: BorderRadius.circular(24), borderSide: BorderSide.none),
+                contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
+              ),
+              onSubmitted: (_) => _enviarMensaje(),
+            )),
+            const SizedBox(width: 8),
+            GestureDetector(
+              onTap: _enviarMensaje,
+              child: Container(
+                width: 44, height: 44,
+                decoration: BoxDecoration(color: AppColors.neonMorado, shape: BoxShape.circle,
+                  boxShadow: [BoxShadow(color: AppColors.neonMorado.withValues(alpha: 0.4), blurRadius: 8)]),
+                child: const Icon(Icons.send, color: Colors.white, size: 20),
+              ),
             ),
-          ),
+          ]),
         ]),
-      ),
+      )),
     ]);
   }
 

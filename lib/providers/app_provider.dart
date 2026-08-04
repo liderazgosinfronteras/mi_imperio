@@ -43,6 +43,10 @@ class AppProvider extends ChangeNotifier {
   // ── STOCKS ────────────────────────────────
   List<AccionSimulada> _acciones = crearAcciones();
   Timer? _simulacionTimer;
+  Timer? _vidaTimer;
+
+  // ── NOTIFICACIONES PENDIENTES ─────────────
+  final List<String> _notificacionesPendientes = [];
 
   // ── JOURNAL ───────────────────────────────
   List<EntradaGratitud> _entradas = [];
@@ -128,6 +132,7 @@ class AppProvider extends ChangeNotifier {
   // ── BIBLIOTECA ────────────────────────────
   List<Libro> get libros => _libros;
   int get librosCompletados => _libros.where((l) => l.estado == EstadoLibro.completado).length;
+  int get librosEnProgreso => _libros.where((l) => l.estado == EstadoLibro.enProgreso).length;
 
   Set<int> capitulosLeidos(String libroId) => _capitulosLeidos[libroId] ?? {};
 
@@ -139,6 +144,18 @@ class AppProvider extends ChangeNotifier {
     if (idx == 0) return true;
     final prev = retoModulos[idx - 1];
     return (_retoProgreso[idx - 1] ?? 0) >= prev.preguntas.length;
+  }
+  bool get granRetoCompleto {
+    final mods = retoModulos;
+    return mods.isNotEmpty &&
+        mods.every((m) => m.preguntas.isNotEmpty && (_retoProgreso[m.id] ?? 0) >= m.preguntas.length);
+  }
+
+  // ── NOTIFICACIONES ────────────────────────
+  List<String> consumirNotificaciones() {
+    final copy = List<String>.from(_notificacionesPendientes);
+    _notificacionesPendientes.clear();
+    return copy;
   }
 
   Future<void> marcarCapituloLeido(String libroId, int capituloIndex) async {
@@ -332,6 +349,7 @@ class AppProvider extends ChangeNotifier {
   @override
   void dispose() {
     _simulacionTimer?.cancel();
+    _vidaTimer?.cancel();
     super.dispose();
   }
 
@@ -497,7 +515,8 @@ class AppProvider extends ChangeNotifier {
     } catch (_) {}
 
     _verificarRachaDelDia();
-    _actualizarMetasConCashflow(); // Asegura que las metas estén al día al cargar
+    _actualizarMetasConCashflow();
+    _iniciarTimerVidas();
     notifyListeners();
   }
 
@@ -694,8 +713,8 @@ class AppProvider extends ChangeNotifier {
     if (_vidas > 0) {
       final eraMaximo = _vidas == 5;
       _vidas--;
-      // Arrancar el contador de recarga cuando las vidas bajan del maximo
       if (eraMaximo) _tiempoVidaRecarga = DateTime.now().toIso8601String();
+      _iniciarTimerVidas();
       notifyListeners();
       await _guardarDatos();
     }
@@ -706,9 +725,39 @@ class AppProvider extends ChangeNotifier {
       _gemas -= 30;
       _vidas = 5;
       _tiempoVidaRecarga = '';
+      _vidaTimer?.cancel();
       notifyListeners();
       await _guardarDatos();
     }
+  }
+
+  void _iniciarTimerVidas() {
+    _vidaTimer?.cancel();
+    if (_vidas >= 5 || _tiempoVidaRecarga.isEmpty) return;
+    _vidaTimer = Timer.periodic(const Duration(minutes: 1), (_) => _verificarRegeneracionVida());
+  }
+
+  void _verificarRegeneracionVida() {
+    if (_vidas >= 5) {
+      _vidaTimer?.cancel();
+      _tiempoVidaRecarga = '';
+      return;
+    }
+    final ref = DateTime.tryParse(_tiempoVidaRecarga);
+    if (ref == null) return;
+    final nextTime = ref.add(const Duration(hours: 2));
+    if (!DateTime.now().isAfter(nextTime)) return;
+    _vidas++;
+    _tiempoVidaRecarga = _vidas >= 5 ? '' : nextTime.toIso8601String();
+    if (_vidas >= 5) _vidaTimer?.cancel();
+    notifyListeners();
+    _guardarDatos();
+  }
+
+  Future<void> agregarGemasQuiz(int cantidad) async {
+    _gemas += cantidad;
+    notifyListeners();
+    await _guardarDatos();
   }
 
   // ═════════════════════════════════════════
@@ -735,13 +784,13 @@ class AppProvider extends ChangeNotifier {
         if (mision.progreso >= mision.meta) {
           mision.completada = true;
           _gemas += mision.gemasRecompensa;
+          _notificacionesPendientes.add('${mision.emoji} ${mision.titulo} +${mision.gemasRecompensa}💎');
           SoundPlayer.mision();
         }
       }
     }
   }
 
-  // Para misiones de cashflow: el progreso es el valor absoluto del fondo
   void _actualizarMisionCashflow() {
     for (final mision in _misiones) {
       if (mision.tipo == TipoMision.cashflow && !mision.completada) {
@@ -749,6 +798,7 @@ class AppProvider extends ChangeNotifier {
         if (mision.progreso >= mision.meta) {
           mision.completada = true;
           _gemas += mision.gemasRecompensa;
+          _notificacionesPendientes.add('${mision.emoji} ${mision.titulo} +${mision.gemasRecompensa}💎');
           SoundPlayer.mision();
         }
       }

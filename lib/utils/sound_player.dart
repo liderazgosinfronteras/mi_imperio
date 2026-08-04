@@ -9,11 +9,22 @@ class SoundPlayer {
 
   static final _pool = <_SoundId, AudioPlayer>{};
 
+  // ── Sonidos existentes ──────────────────────────────────────
   static Future<void> correcto() => _play(_SoundId.correcto);
   static Future<void> error()    => _play(_SoundId.error);
   static Future<void> venta()    => _play(_SoundId.venta);
   static Future<void> leccion()  => _play(_SoundId.leccion);
   static Future<void> mision()   => _play(_SoundId.mision);
+
+  // ── Sonidos nuevos ──────────────────────────────────────────
+  static Future<void> compra()   => _play(_SoundId.compra);
+  static Future<void> nivel()    => _play(_SoundId.nivel);
+  static Future<void> victoria() => _play(_SoundId.victoria);
+  static Future<void> dado()     => _play(_SoundId.dado);
+  static Future<void> payday()   => _play(_SoundId.payday);
+  static Future<void> pasivo()   => _play(_SoundId.pasivo);
+  static Future<void> click()    => _play(_SoundId.click);
+  static Future<void> tiempo()   => _play(_SoundId.tiempo);
 
   static Future<void> _play(_SoundId id) async {
     try {
@@ -24,6 +35,7 @@ class SoundPlayer {
   }
 
   static final Map<_SoundId, Uint8List> _wavs = {
+    // ── Existentes ─────────────────────────────────────────────
     _SoundId.correcto: _generarMelodia(
       frecuencias: [523.25, 659.25, 783.99],
       duraciones:  [0.09,   0.09,   0.18],
@@ -48,6 +60,62 @@ class SoundPlayer {
       frecuencias: [659.25, 783.99, 987.77, 1318.51],
       duraciones:  [0.07,   0.07,   0.07,   0.30],
       volumen: 0.55,
+    ),
+
+    // ── Compra: "cha-ching" — golpe corto + subida ─────────────
+    _SoundId.compra: _generarMelodia(
+      frecuencias: [880.00, 1108.73, 1318.51],
+      duraciones:  [0.05,   0.05,    0.14],
+      volumen: 0.65,
+    ),
+
+    // ── Nivel: fanfarria ascendente 5 notas ───────────────────
+    _SoundId.nivel: _generarMelodia(
+      frecuencias: [523.25, 659.25, 783.99, 1046.50, 1318.51],
+      duraciones:  [0.08,   0.08,   0.08,   0.08,    0.35],
+      volumen: 0.70,
+    ),
+
+    // ── Victoria: melodía triunfal 7 notas ───────────────────
+    _SoundId.victoria: _generarMelodia(
+      frecuencias: [523.25, 659.25, 783.99, 659.25, 783.99, 1046.50, 1318.51],
+      duraciones:  [0.10,   0.10,   0.10,   0.08,   0.08,   0.10,    0.45],
+      volumen: 0.75,
+    ),
+
+    // ── Dado: ruido rápido descendente (3 pulsos) ────────────
+    _SoundId.dado: _generarMelodia(
+      frecuencias: [392.00, 329.63, 261.63],
+      duraciones:  [0.06,   0.06,   0.10],
+      volumen: 0.50,
+    ),
+
+    // ── Payday: alegre ascendente-descendente ─────────────────
+    _SoundId.payday: _generarMelodia(
+      frecuencias: [659.25, 783.99, 1046.50, 783.99, 1046.50],
+      duraciones:  [0.07,   0.07,   0.07,    0.07,   0.28],
+      volumen: 0.65,
+    ),
+
+    // ── Pasivo: tono grave de "gasto" ───────────────────────
+    _SoundId.pasivo: _generarMelodia(
+      frecuencias: [261.63, 220.00, 174.61],
+      duraciones:  [0.10,   0.10,   0.28],
+      volumen: 0.40,
+    ),
+
+    // ── Click: toque rápido de UI ────────────────────────────
+    _SoundId.click: _generarMelodia(
+      frecuencias: [1046.50],
+      duraciones:  [0.04],
+      volumen: 0.30,
+    ),
+
+    // ── Tiempo: beep urgente (doble) ─────────────────────────
+    _SoundId.tiempo: _generarMelodia(
+      frecuencias: [880.00, 880.00],
+      duraciones:  [0.07,   0.07],
+      volumen: 0.50,
     ),
   };
 
@@ -119,4 +187,4 @@ class SoundPlayer {
   }
 }
 
-enum _SoundId { correcto, error, venta, leccion, mision }
+enum _SoundId { correcto, error, venta, leccion, mision, compra, nivel, victoria, dado, payday, pasivo, click, tiempo }

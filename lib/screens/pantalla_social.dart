@@ -3,6 +3,7 @@ import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:provider/provider.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 import '../models/imperio_model.dart';
 import '../providers/app_provider.dart';
 import '../services/firebase_service.dart';
@@ -35,6 +36,8 @@ class _PantallaSocialState extends State<PantallaSocial>
 
   Future<void> _publicarStats() async {
     if (!mounted) return;
+    final ok = await FirebaseService.ensureInit();
+    if (!ok || !mounted) return;
     final app = context.read<AppProvider>();
     await FirebaseService.publicarEstadisticas(
       nivel:     app.nivelActual,
@@ -148,31 +151,120 @@ class _PantallaSocialState extends State<PantallaSocial>
 
   // ─── LEADERBOARD ──────────────────────────────────────────────
   Widget _buildLeaderboard() {
-    if (!kFirebaseEnabled) return _buildFirebaseSetup();
-
-    return StreamBuilder<QuerySnapshot<Map<String, dynamic>>>(
-      stream: FirebaseService.leaderboardStream(),
-      builder: (context, snap) {
+    return FutureBuilder<bool>(
+      future: FirebaseService.ensureInit(),
+      builder: (ctx, snap) {
         if (snap.connectionState == ConnectionState.waiting) {
-          return const Center(child: CircularProgressIndicator(color: AppColors.neonMorado));
-        }
-        final docs = snap.data?.docs ?? [];
-        if (docs.isEmpty) {
-          return Center(child: Column(mainAxisAlignment: MainAxisAlignment.center, children: [
-            const Text('🏆', style: TextStyle(fontSize: 60)),
-            const SizedBox(height: 16),
-            const Text('Sé la primera en el ranking', style: TextStyle(color: Colors.white, fontSize: 18, fontWeight: FontWeight.w700)),
-            const SizedBox(height: 8),
-            Text('Juega Imperio Builder para aparecer aquí', style: AppTextStyles.caption),
+          return const Center(child: Column(mainAxisAlignment: MainAxisAlignment.center, children: [
+            CircularProgressIndicator(color: AppColors.neonMorado),
+            SizedBox(height: 16),
+            Text('Conectando al ranking...', style: AppTextStyles.caption),
           ]));
         }
-        return ListView.builder(
-          padding: const EdgeInsets.all(16),
-          itemCount: docs.length,
-          itemBuilder: (_, i) => _buildRankCard(i + 1, docs[i].data(), docs[i].id),
+        final fbOk = snap.data ?? false;
+        if (!fbOk) return _buildLeaderboardLocal();
+
+        return StreamBuilder<QuerySnapshot<Map<String, dynamic>>>(
+          stream: FirebaseService.leaderboardStream(),
+          builder: (context, snap) {
+            if (snap.connectionState == ConnectionState.waiting) {
+              return const Center(child: CircularProgressIndicator(color: AppColors.neonMorado));
+            }
+            if (snap.hasError) return _buildLeaderboardLocal();
+            final docs = snap.data?.docs ?? [];
+            if (docs.isEmpty) {
+              return Center(child: Column(mainAxisAlignment: MainAxisAlignment.center, children: [
+                const Text('🏆', style: TextStyle(fontSize: 60)),
+                const SizedBox(height: 16),
+                const Text('Sé la primera en el ranking', style: TextStyle(color: Colors.white, fontSize: 18, fontWeight: FontWeight.w700)),
+                const SizedBox(height: 8),
+                Text('Juega Imperio Builder para aparecer aquí', style: AppTextStyles.caption),
+              ]));
+            }
+            return ListView.builder(
+              padding: const EdgeInsets.all(16),
+              itemCount: docs.length,
+              itemBuilder: (_, i) => _buildRankCard(i + 1, docs[i].data(), docs[i].id),
+            );
+          },
         );
       },
     );
+  }
+
+  Widget _buildLeaderboardLocal() {
+    return FutureBuilder<double>(
+      future: _cargarScoreLocal(),
+      builder: (ctx, snap) {
+        final score = snap.data ?? 0;
+        final nivel = nivelImperio(score);
+        return SingleChildScrollView(
+          padding: const EdgeInsets.all(24),
+          child: Column(children: [
+            const SizedBox(height: 20),
+            const Text('🏆', style: TextStyle(fontSize: 64)),
+            const SizedBox(height: 12),
+            const Text('Tu Imperio', style: TextStyle(color: Colors.white, fontSize: 22, fontWeight: FontWeight.w900)),
+            const SizedBox(height: 20),
+            if (score > 0) ...[
+              Container(
+                width: double.infinity,
+                padding: const EdgeInsets.all(20),
+                decoration: BoxDecoration(
+                  gradient: const LinearGradient(colors: [Color(0xFF4A1080), Color(0xFF2A0850)]),
+                  borderRadius: BorderRadius.circular(20),
+                  border: Border.all(color: AppColors.neonMorado, width: 2),
+                ),
+                child: Column(children: [
+                  Text(kAvataresSocial[FirebaseService.avatar.clamp(0, kAvataresSocial.length - 1)],
+                    style: const TextStyle(fontSize: 48)),
+                  const SizedBox(height: 8),
+                  Text(FirebaseService.apodo ?? 'Tú',
+                    style: const TextStyle(color: Colors.white, fontSize: 20, fontWeight: FontWeight.w900)),
+                  const SizedBox(height: 4),
+                  Text('${badgeNivel(nivel)} ${tituloNivel(nivel)}',
+                    style: const TextStyle(color: AppColors.neonMorado, fontWeight: FontWeight.w700)),
+                  const SizedBox(height: 12),
+                  Text(_fmt(score),
+                    style: const TextStyle(color: AppColors.neonAmarillo, fontSize: 38, fontWeight: FontWeight.w900)),
+                  const Text('acumulados en Imperio Builder', style: AppTextStyles.caption),
+                ]),
+              ),
+              const SizedBox(height: 16),
+            ] else ...[
+              Container(
+                padding: const EdgeInsets.all(20),
+                decoration: BoxDecoration(color: AppColors.fondoCard, borderRadius: BorderRadius.circular(16)),
+                child: const Text('Juega Imperio Builder para aparecer en el ranking.',
+                  style: AppTextStyles.body, textAlign: TextAlign.center),
+              ),
+              const SizedBox(height: 16),
+            ],
+            Container(
+              padding: const EdgeInsets.all(14),
+              decoration: BoxDecoration(
+                color: const Color(0xFF1A1035),
+                borderRadius: BorderRadius.circular(14),
+                border: Border.all(color: Colors.white12),
+              ),
+              child: const Row(children: [
+                Text('🌐', style: TextStyle(fontSize: 20)),
+                SizedBox(width: 10),
+                Expanded(child: Text(
+                  'El ranking global sincroniza automáticamente cuando el servidor esté disponible.',
+                  style: AppTextStyles.caption,
+                )),
+              ]),
+            ),
+          ]),
+        );
+      },
+    );
+  }
+
+  Future<double> _cargarScoreLocal() async {
+    final prefs = await SharedPreferences.getInstance();
+    return prefs.getDouble('ib_total') ?? 0;
   }
 
   Widget _buildRankCard(int pos, Map<String, dynamic> d, String uid) {
@@ -228,12 +320,6 @@ class _PantallaSocialState extends State<PantallaSocial>
         _buildMiPerfil(),
         const SizedBox(height: 24),
 
-        if (!kFirebaseEnabled) ...[
-          _buildFirebaseSetupCard(),
-          const SizedBox(height: 16),
-          const Text('Mientras tanto, practica en modo local:', style: TextStyle(color: Colors.white54, fontSize: 13)),
-          const SizedBox(height: 8),
-        ],
 
         // ── Crear sala ────────────────────────────────────
         const Text('🎮 Crear partida', style: AppTextStyles.sectionTitle),
@@ -360,41 +446,6 @@ class _PantallaSocialState extends State<PantallaSocial>
     }).toList());
   }
 
-  Widget _buildFirebaseSetup() {
-    return Center(child: SingleChildScrollView(
-      padding: const EdgeInsets.all(24),
-      child: Column(mainAxisAlignment: MainAxisAlignment.center, children: [
-        const Text('🔥', style: TextStyle(fontSize: 60)),
-        const SizedBox(height: 16),
-        const Text('Ranking Online', style: TextStyle(color: Colors.white, fontSize: 22, fontWeight: FontWeight.w800)),
-        const SizedBox(height: 8),
-        Text('Activa Firebase para ver el ranking global', style: AppTextStyles.caption, textAlign: TextAlign.center),
-        const SizedBox(height: 20),
-        _buildFirebaseSetupCard(),
-      ]),
-    ));
-  }
-
-  Widget _buildFirebaseSetupCard() {
-    return Container(
-      padding: const EdgeInsets.all(16),
-      decoration: BoxDecoration(
-        color: const Color(0xFF1A1035),
-        borderRadius: BorderRadius.circular(16),
-        border: Border.all(color: Colors.orange.withValues(alpha: 0.5)),
-      ),
-      child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-        const Row(children: [
-          Icon(Icons.info_outline, color: Colors.orange, size: 18),
-          SizedBox(width: 8),
-          Text('Configurar Firebase (5 min)', style: TextStyle(color: Colors.orange, fontWeight: FontWeight.w700, fontSize: 14)),
-        ]),
-        const SizedBox(height: 10),
-        const Text('1. Ve a console.firebase.google.com\n2. Crea proyecto "Mi Imperio LSF"\n3. Activa Anonymous Auth + Firestore\n4. Sigue las instrucciones en firebase_options.dart\n5. Cambia kFirebaseEnabled = true en firebase_service.dart',
-          style: TextStyle(color: Colors.white60, fontSize: 12, height: 1.7)),
-      ]),
-    );
-  }
 
   String _fmt(double v) {
     if (v >= 1000000) return '${(v / 1000000).toStringAsFixed(1)}M';

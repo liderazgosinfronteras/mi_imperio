@@ -3,6 +3,7 @@ import 'dart:async';
 import 'dart:math';
 import 'package:flutter/material.dart';
 import '../theme.dart';
+import '../utils/sound_player.dart';
 
 // ── Tipos ─────────────────────────────────────────────────────────
 enum TEspacio { inicio, propiedad, suerte, conocimiento, impuesto, visita, parking, prision }
@@ -156,6 +157,7 @@ class _PantallaMonopolioState extends State<PantallaMonopolio> {
     _d1 = _rand.nextInt(6) + 1;
     _d2 = _rand.nextInt(6) + 1;
     final pasos = _d1 + _d2;
+    SoundPlayer.dado();
     setState(() => _tiro = true);
     _moverJugador(_jugActual, pasos);
   }
@@ -181,21 +183,26 @@ class _PantallaMonopolioState extends State<PantallaMonopolio> {
       case TEspacio.inicio:
         _addLog('${j.emoji} ${j.nombre} está en INICIO. ¡Cobra \$200!');
         j.dinero += 200;
+        SoundPlayer.payday();
         _finTurno();
       case TEspacio.parking:
         _addLog('${j.emoji} ${j.nombre} descansa en el Parking Libre. 🅿️');
+        SoundPlayer.click();
         _finTurno();
       case TEspacio.visita:
         _addLog('${j.emoji} ${j.nombre} solo visita la prisión. 😄');
+        SoundPlayer.click();
         _finTurno();
       case TEspacio.prision:
         j.preso = true; j.pos = 5; j.turnoPreso = 0;
         _addLog('${j.emoji} ${j.nombre} ¡Va a prisión! 👮');
+        SoundPlayer.error();
         _finTurno();
       case TEspacio.impuesto:
         final monto = esp.impuesto;
         j.dinero -= monto;
         _addLog('${j.emoji} ${j.nombre} paga impuesto: -\$$monto 💸');
+        SoundPlayer.pasivo();
         _verificarQuiebra(j);
         _finTurno();
       case TEspacio.suerte:
@@ -203,12 +210,14 @@ class _PantallaMonopolioState extends State<PantallaMonopolio> {
         _cartaActiva = c;
         j.dinero += c.$4;
         _addLog('${j.emoji} ${j.nombre} saca carta 🍀: ${c.$2}');
+        c.$4 >= 0 ? SoundPlayer.correcto() : SoundPlayer.pasivo();
         setState(() => _esperandoAccion = true);
       case TEspacio.conocimiento:
         final c = _conocimiento[_rand.nextInt(_conocimiento.length)];
         _cartaActiva = c;
         j.dinero += c.$4;
         _addLog('${j.emoji} ${j.nombre} aprende 📚: ${c.$2}');
+        c.$4 >= 0 ? SoundPlayer.leccion() : SoundPlayer.pasivo();
         setState(() => _esperandoAccion = true);
       case TEspacio.propiedad:
         _manejarPropiedad(j);
@@ -232,6 +241,7 @@ class _PantallaMonopolioState extends State<PantallaMonopolio> {
       j.dinero -= prop.renta;
       duenoJ.dinero += prop.renta;
       _addLog('${j.emoji} paga \$${prop.renta} de renta a ${duenoJ.emoji} por ${esp.nombre}');
+      SoundPlayer.pasivo();
       _verificarQuiebra(j);
       _finTurno();
     } else {
@@ -250,6 +260,7 @@ class _PantallaMonopolioState extends State<PantallaMonopolio> {
     prop.dueno = j.id;
     j.dinero -= _tablero[prop.spaceIdx].precio;
     _addLog('${j.emoji} ${j.nombre} compra ${_tablero[prop.spaceIdx].nombre} por \$${_tablero[prop.spaceIdx].precio} ✅');
+    SoundPlayer.compra();
   }
 
   void _verificarQuiebra(MJugador j) {
@@ -263,7 +274,10 @@ class _PantallaMonopolioState extends State<PantallaMonopolio> {
 
   void _verificarFin() {
     final activos = _jugadores.where((j) => !j.eliminado).toList();
-    if (activos.length <= 1) setState(() => _terminado = true);
+    if (activos.length <= 1) {
+      SoundPlayer.victoria();
+      setState(() => _terminado = true);
+    }
   }
 
   void _finTurno() {
@@ -324,6 +338,7 @@ class _PantallaMonopolioState extends State<PantallaMonopolio> {
     prop.casas++;
     _jugActual.dinero -= prop.costoCasa;
     _addLog('${_jugActual.emoji} construye casa en ${_tablero[_jugActual.pos].nombre} 🏠');
+    SoundPlayer.compra();
     setState(() {});
   }
 

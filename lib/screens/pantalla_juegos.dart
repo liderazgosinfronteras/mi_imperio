@@ -8,6 +8,7 @@ import 'pantalla_cashflow_lobby.dart';
 import 'pantalla_social.dart';
 import 'pantalla_herramientas.dart';
 import 'pantalla_estadisticas.dart';
+import 'pantalla_imperio_builder.dart';
 
 class PantallaJuegos extends StatelessWidget {
   const PantallaJuegos({super.key});
@@ -49,6 +50,17 @@ class PantallaJuegos extends StatelessWidget {
                 color2: const Color(0xFF1976D2),
                 onTap: () => Navigator.push(context,
                     MaterialPageRoute(builder: (_) => const PantallaJuegoVida())),
+              ),
+              const SizedBox(height: 12),
+
+              _JuegoCard(
+                emoji: '🍋',
+                titulo: 'Imperio Builder',
+                descripcion: 'Empieza con un puesto de limonada y construye un imperio empresarial',
+                color1: const Color(0xFFF57F17),
+                color2: const Color(0xFFFFB300),
+                onTap: () => Navigator.push(context,
+                    MaterialPageRoute(builder: (_) => const PantallaImperioBuilder())),
               ),
               const SizedBox(height: 12),
 

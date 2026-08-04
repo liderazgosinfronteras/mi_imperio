@@ -123,7 +123,7 @@ class _PantallaImperioBuilderState extends State<PantallaImperioBuilder>
     _timerGuardado?.cancel();
     _ticker = Timer.periodic(const Duration(milliseconds: 100), (_) {
       if (!mounted) return;
-      final bonus = bonusMultiplier(_totalGanado) * pow(1.5, _prestiges.clamp(0, 7));
+      final bonus = bonusMultiplier(_totalGanado) * pow(1.25, _prestiges.clamp(0, 7));
       final ingresoSeg = _negocios.fold(0.0, (s, n) => s + n.ingresoActual) * bonus;
       final ganado = ingresoSeg * 0.1;
       setState(() {
@@ -176,7 +176,7 @@ class _PantallaImperioBuilderState extends State<PantallaImperioBuilder>
 
   double get _ingresoPorSegundo =>
       _negocios.fold(0.0, (s, n) => s + n.ingresoActual) *
-      bonusMultiplier(_totalGanado) * pow(1.5, _prestiges.clamp(0, 7));
+      bonusMultiplier(_totalGanado) * pow(1.25, _prestiges.clamp(0, 7));
 
   // ─────────────────────────────────────────
   //  ETA PARA EL SIGUIENTE NEGOCIO
@@ -198,8 +198,8 @@ class _PantallaImperioBuilderState extends State<PantallaImperioBuilder>
 
   void _hacerPrestige() {
     final esMaximo = _prestiges >= _maxPrestiges;
-    final multActual = pow(1.5, _prestiges.clamp(0, _maxPrestiges)).toStringAsFixed(2);
-    final multSig    = pow(1.5, (_prestiges + 1).clamp(0, _maxPrestiges)).toStringAsFixed(2);
+    final multActual = pow(1.25, _prestiges.clamp(0, _maxPrestiges)).toStringAsFixed(2);
+    final multSig    = pow(1.25, (_prestiges + 1).clamp(0, _maxPrestiges)).toStringAsFixed(2);
     showDialog(
       context: context,
       builder: (_) => AlertDialog(
@@ -212,7 +212,7 @@ class _PantallaImperioBuilderState extends State<PantallaImperioBuilder>
           Text(
             esMaximo
               ? '¡Alcanzaste el PRESTIGE MÁXIMO!\nSigues ganando con el multiplicador máximo ×$multActual para siempre.'
-              : '¡Alcanzaste el Millón!\nReinicia tu Imperio desde cero pero con un multiplicador permanente de ×1.5.',
+              : '¡Alcanzaste el Millón!\nReinicia tu Imperio desde cero pero con un multiplicador permanente de ×1.25.',
             style: AppTextStyles.body, textAlign: TextAlign.center,
           ),
           const SizedBox(height: 12),

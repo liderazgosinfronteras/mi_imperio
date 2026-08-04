@@ -196,6 +196,37 @@ class PuntoGrafica {
   });
 }
 
+// ─────────────────────────────────────────────
+//  RETO FINANCIERO
+// ─────────────────────────────────────────────
+class RetoModulo {
+  final int id;
+  final String nombre;
+  final String emoji;
+  final String descripcion;
+  final String dificultad;
+  final String pais;
+  final String bandera;
+  final String paisEmoji;
+  final String paisDesc;
+  final List<Pregunta> preguntas;
+
+  const RetoModulo({
+    required this.id,
+    required this.nombre,
+    required this.emoji,
+    required this.descripcion,
+    required this.dificultad,
+    required this.pais,
+    required this.bandera,
+    required this.paisEmoji,
+    required this.paisDesc,
+    required this.preguntas,
+  });
+
+  int get totalNiveles => preguntas.length;
+}
+
 // ═════════════════════════════════════════════
 //  CATALOG: LECCIONES (18 total — módulo 1 + módulo 2)
 // ═════════════════════════════════════════════

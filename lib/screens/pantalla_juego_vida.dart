@@ -2,6 +2,7 @@
 import 'dart:math';
 import 'package:flutter/material.dart';
 import '../theme.dart';
+import '../utils/sound_player.dart';
 
 // ═══════════════════════════════════════════════════════════════
 //  MODELOS
@@ -220,6 +221,7 @@ class _PantallaJuegoVidaState extends State<PantallaJuegoVida> with TickerProvid
   Future<void> _girarRuleta() async {
     if (_girando || _esperandoCarta || _esperandoDecision) return;
     setState(() { _girando = true; _mensajeLog = ''; });
+    SoundPlayer.dado();
     final pasos = _rng.nextInt(6) + 1;
     setState(() { _ruletaValor = pasos; });
     await _ruletaCtrl.forward(from: 0);
@@ -233,6 +235,7 @@ class _PantallaJuegoVidaState extends State<PantallaJuegoVida> with TickerProvid
     for (int i = 0; i < cobros; i++) {
       _efectivo += _cashflow;
     }
+    if (_cashflow > 0) SoundPlayer.payday();
 
     if (!mounted) return;
     setState(() {
@@ -245,6 +248,7 @@ class _PantallaJuegoVidaState extends State<PantallaJuegoVida> with TickerProvid
       _posEnEtapa = 0;
       if (_etapaActual < _etapas.length - 1) {
         _etapaActual++;
+        SoundPlayer.nivel();
         setState(() { _mensajeLog = '🎉 ¡Avanzas a la etapa: ${_etapas[_etapaActual].emoji} ${_etapas[_etapaActual].nombre}!'; });
       } else {
         // Jubilación
@@ -292,9 +296,11 @@ class _PantallaJuegoVidaState extends State<PantallaJuegoVida> with TickerProvid
           _ingresoExtra += carta.valor;
           _ingresosExtra.add(carta);
           msg = '📈 +\$${carta.valor}/mes permanente al flujo.';
+          SoundPlayer.correcto();
         } else if (carta.esPermanente && carta.valor < 0) {
           _gastosExtra += carta.valor.abs();
           msg = '💸 -\$${carta.valor.abs()}/mes permanente a gastos.';
+          SoundPlayer.pasivo();
         } else if (carta.valor > 0) {
           if (carta.valor > 10000) {
             _patrimonio += carta.valor;
@@ -303,16 +309,22 @@ class _PantallaJuegoVidaState extends State<PantallaJuegoVida> with TickerProvid
             _efectivo += carta.valor;
             msg = '💵 +\$${carta.valor} en efectivo.';
           }
+          SoundPlayer.correcto();
         } else if (carta.valor < 0) {
           _efectivo = max(0, _efectivo + carta.valor);
           msg = '💸 Pagas \$${carta.valor.abs()}.';
+          SoundPlayer.pasivo();
         }
-        if (carta.tipo == VidaTipoCarta.logro) _logros.add('${carta.emoji} ${carta.titulo}');
+        if (carta.tipo == VidaTipoCarta.logro) {
+          _logros.add('${carta.emoji} ${carta.titulo}');
+          SoundPlayer.mision();
+        }
         break;
 
       case VidaTipoCarta.crisis:
         _efectivo = max(0, _efectivo + carta.valor);
         msg = '💸 Pagas \$${carta.valor.abs()} por esta crisis.';
+        SoundPlayer.error();
         break;
 
       case VidaTipoCarta.familia:
@@ -324,11 +336,14 @@ class _PantallaJuegoVidaState extends State<PantallaJuegoVida> with TickerProvid
       case VidaTipoCarta.salud:
         if (carta.esPermanente && carta.valor > 0) {
           _ingresoExtra += carta.valor;
+          SoundPlayer.correcto();
         } else if (carta.esPermanente && carta.valor < 0) {
           _gastosExtra += carta.valor.abs();
+          SoundPlayer.pasivo();
         } else if (carta.valor != 0) {
           _efectivo = max(0, _efectivo + carta.valor);
           msg = carta.valor > 0 ? '💚 Ahorras \$${carta.valor}/mes en salud.' : '🏥 Pagas \$${carta.valor.abs()} en salud.';
+          carta.valor > 0 ? SoundPlayer.correcto() : SoundPlayer.error();
         }
         break;
     }
@@ -348,8 +363,10 @@ class _PantallaJuegoVidaState extends State<PantallaJuegoVida> with TickerProvid
         _ingresoExtra += 1200;
         _gastosExtra += 800;
         _logros.add('💍 Matrimonio');
+        SoundPlayer.mision();
         setState(() { _mensajeLog = '💍 ¡Te casaste! +\$1,200/mes ingreso de pareja, +\$800/mes gastos compartidos.\n\n💡 ${carta.leccion}'; });
       } else {
+        SoundPlayer.click();
         setState(() { _mensajeLog = '💔 Decidiste enfocarte en tus metas ahora. ¡Tu tiempo, tu decisión!\n\n💡 ${carta.leccion}'; });
       }
     } else {
@@ -357,8 +374,10 @@ class _PantallaJuegoVidaState extends State<PantallaJuegoVida> with TickerProvid
         _hijos++;
         _gastosHijos += 700;
         _logros.add('👶 Maternidad');
+        SoundPlayer.leccion();
         setState(() { _mensajeLog = '👶 ¡Bebé en camino! +\$700/mes en gastos permanentes.\n\n💡 ${carta.leccion}'; });
       } else {
+        SoundPlayer.click();
         setState(() { _mensajeLog = '✨ Decidiste no tener hijos por ahora. Más capital para invertir.\n\n💡 ${carta.leccion}'; });
       }
     }
@@ -374,13 +393,17 @@ class _PantallaJuegoVidaState extends State<PantallaJuegoVida> with TickerProvid
     _gastosCasa = casa.cuotaMensual;
     _patrimonio += casa.precio;
     _logros.add('${casa.emoji} ${casa.nombre}');
+    SoundPlayer.compra();
     setState(() { _esperandoDecision = false; _mensajeLog = '🏠 ¡Compraste ${casa.nombre}! Cuota: \$${casa.cuotaMensual}/mes. Patrimonio +\$${casa.precio}.'; });
   }
 
   // ─────────────────────────────────────────
   //  JUBILACIÓN
   // ─────────────────────────────────────────
-  void _jubilar() => setState(() => _fase = 'jubilacion');
+  void _jubilar() {
+    SoundPlayer.victoria();
+    setState(() => _fase = 'jubilacion');
+  }
 
   void _iniciarJuego(bool universidad) {
     setState(() {

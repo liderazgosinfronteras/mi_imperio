@@ -134,6 +134,24 @@ class _PantallaHomeState extends State<PantallaHome> {
   int _tab = 0;
 
   @override
+  void didChangeDependencies() {
+    super.didChangeDependencies();
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (!mounted) return;
+      final notifs = context.read<AppProvider>().consumirNotificaciones();
+      for (final notif in notifs) {
+        ScaffoldMessenger.of(context).showSnackBar(SnackBar(
+          content: Text('🎯 ¡Misión completada! $notif'),
+          backgroundColor: const Color(0xFF1B5E20),
+          behavior: SnackBarBehavior.floating,
+          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+          duration: const Duration(seconds: 3),
+        ));
+      }
+    });
+  }
+
+  @override
   Widget build(BuildContext context) {
     final app = Provider.of<AppProvider>(context);
     final esDiaEducacion = app.esDiaEducacion;
