@@ -454,6 +454,81 @@ class FirebaseService {
     }
   }
 
+  // ─── Monopolio Multijugador ───────────────────────────────────
+  static Future<Map<String, dynamic>> createMonopolioRoom() async {
+    if (!kFirebaseEnabled) return {'error': 'Firebase no disponible.'};
+    final authError = await _ensureAuth();
+    if (authError != null) return {'error': authError};
+    final u = uid!;
+    try {
+      final codigo = _genCodigo();
+      final ref = _db.collection('monopolio_rooms').doc();
+      await ref.set({
+        'codigo':         codigo,
+        'estado':         'lobby',
+        'creadoPor':      u,
+        'creadoEn':       FieldValue.serverTimestamp(),
+        'jugadoresUids':  [u],
+        'jugadoresInfo':  {u: {'apodo': _apodoLocal ?? 'Jugadora', 'avatarIndex': _avatarLocal}},
+        'gameState':      null,
+      });
+      return {'roomId': ref.id, 'codigo': codigo};
+    } catch (e) {
+      return {'error': 'No se pudo crear la sala: $e'};
+    }
+  }
+
+  static Future<Map<String, dynamic>> joinMonopolioRoom(String codigo) async {
+    if (!kFirebaseEnabled) return {'error': 'Firebase no disponible.'};
+    final authError = await _ensureAuth();
+    if (authError != null) return {'error': authError};
+    final u = uid!;
+    try {
+      final q = await _db.collection('monopolio_rooms')
+          .where('codigo', isEqualTo: codigo.toUpperCase().trim())
+          .limit(5).get();
+      if (q.docs.isEmpty) return {'error': 'Código no encontrado.'};
+      final doc = q.docs.firstWhere(
+        (d) => (d.data()['estado'] as String?) == 'lobby',
+        orElse: () => q.docs.first,
+      );
+      final estado = doc.data()['estado'] as String? ?? '';
+      if (estado != 'lobby') return {'error': 'La partida ya comenzó o terminó.'};
+      final uids = List<String>.from(doc.data()['jugadoresUids'] ?? []);
+      if (uids.length >= 4) return {'error': 'Sala llena (máximo 4 jugadoras).'};
+      if (!uids.contains(u)) {
+        await doc.reference.update({
+          'jugadoresUids':      FieldValue.arrayUnion([u]),
+          'jugadoresInfo.$u':   {'apodo': _apodoLocal ?? 'Jugadora', 'avatarIndex': _avatarLocal},
+        });
+      }
+      return {'roomId': doc.id, 'codigo': doc.data()['codigo'] ?? ''};
+    } catch (e) {
+      return {'error': 'No se pudo unir: $e'};
+    }
+  }
+
+  static Future<void> startMonopolioRoom(String roomId, Map<String, dynamic> gameState) async {
+    if (!kFirebaseEnabled) return;
+    await _db.collection('monopolio_rooms').doc(roomId).update({
+      'estado':     'jugando',
+      'iniciadoEn': FieldValue.serverTimestamp(),
+      'gameState':  gameState,
+    });
+  }
+
+  static Future<void> updateMonopolioState(String roomId, Map<String, dynamic> gameState) async {
+    if (!kFirebaseEnabled) return;
+    try {
+      await _db.collection('monopolio_rooms').doc(roomId).update({'gameState': gameState});
+    } catch (_) {}
+  }
+
+  static Stream<DocumentSnapshot<Map<String, dynamic>>>? monopolioRoomStream(String roomId) {
+    if (!kFirebaseEnabled || !_fbReady) return null;
+    try { return _db.collection('monopolio_rooms').doc(roomId).snapshots(); } catch (_) { return null; }
+  }
+
   static Future<Map<String, dynamic>?> obtenerPerfilAmiga(String amigoUid) async {
     if (!kFirebaseEnabled) return null;
     try {

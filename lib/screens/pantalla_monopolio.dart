@@ -2,8 +2,11 @@
 import 'dart:async';
 import 'dart:math';
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import '../theme.dart';
 import '../utils/sound_player.dart';
+import '../services/firebase_service.dart';
+import 'package:cloud_firestore/cloud_firestore.dart';
 
 // ── Tipos ─────────────────────────────────────────────────────────
 enum TEspacio { inicio, propiedad, suerte, conocimiento, impuesto, visita, parking, prision }
@@ -40,13 +43,14 @@ class MJugador {
   final String nombre, emoji;
   final Color color;
   final bool esIA;
+  final String? uid; // Firebase UID (solo modo online)
   int pos      = 0;
   int dinero   = 1500;
   bool preso   = false;
   int turnoPreso = 0;
   bool eliminado = false;
   MJugador({required this.id, required this.nombre, required this.emoji,
-    required this.color, this.esIA = false});
+    required this.color, this.esIA = false, this.uid});
 }
 
 // ── Tablero (20 espacios) ─────────────────────────────────────────
@@ -116,9 +120,9 @@ class _PantallaMonopolioState extends State<PantallaMonopolio> {
 
   // ── Estado de juego ──────────────────────────────────────────────
   late List<MJugador> _jugadores;
-  late List<MProp?>  _props; // indexed by spaceIdx, null if not propiedad
+  late List<MProp?>  _props;
   int  _turnoIdx     = 0;
-  bool _esperandoAccion = false; // waiting for player to buy/skip
+  bool _esperandoAccion = false;
   bool _terminado    = false;
   List<String> _log  = [];
 
@@ -130,6 +134,210 @@ class _PantallaMonopolioState extends State<PantallaMonopolio> {
   (String, String, String, int)? _cartaActiva;
 
   final _rand = Random();
+
+  // ── Online ───────────────────────────────────────────────────────
+  bool   _modoOnline   = false;
+  bool   _enLobby      = false;
+  bool   _soyHost      = false;
+  String _miUid        = '';
+  String _roomId       = '';
+  String _roomCodigo   = '';
+  List<Map<String, dynamic>> _lobbyJugadores = [];
+  StreamSubscription<DocumentSnapshot<Map<String, dynamic>>>? _roomSub;
+  bool   _cargandoOnline = false;
+  String _errorOnline    = '';
+  final  _codigoCtrl     = TextEditingController();
+
+  bool get _esMiTurno => !_modoOnline || (_juegoIniciado && !_terminado && _jugActual.uid == _miUid);
+
+  @override
+  void dispose() {
+    _roomSub?.cancel();
+    _codigoCtrl.dispose();
+    super.dispose();
+  }
+
+  // ── Online: crear sala ───────────────────────────────────────────
+  Future<void> _crearSalaOnline() async {
+    setState(() { _cargandoOnline = true; _errorOnline = ''; });
+    final res = await FirebaseService.createMonopolioRoom();
+    if (!mounted) return;
+    if (res.containsKey('error')) {
+      setState(() { _cargandoOnline = false; _errorOnline = res['error']; });
+      return;
+    }
+    _miUid      = FirebaseService.uid ?? '';
+    _roomId     = res['roomId'];
+    _roomCodigo = res['codigo'];
+    _soyHost    = true;
+    _modoOnline = true;
+    _suscribirRoom();
+    setState(() { _cargandoOnline = false; _enLobby = true; });
+  }
+
+  // ── Online: unirse a sala ────────────────────────────────────────
+  Future<void> _unirseASala(String codigo) async {
+    if (codigo.trim().isEmpty) return;
+    setState(() { _cargandoOnline = true; _errorOnline = ''; });
+    final res = await FirebaseService.joinMonopolioRoom(codigo);
+    if (!mounted) return;
+    if (res.containsKey('error')) {
+      setState(() { _cargandoOnline = false; _errorOnline = res['error']; });
+      return;
+    }
+    _miUid      = FirebaseService.uid ?? '';
+    _roomId     = res['roomId'];
+    _roomCodigo = res['codigo'] ?? codigo.toUpperCase().trim();
+    _soyHost    = false;
+    _modoOnline = true;
+    _suscribirRoom();
+    setState(() { _cargandoOnline = false; _enLobby = true; });
+  }
+
+  // ── Online: escuchar cambios ─────────────────────────────────────
+  void _suscribirRoom() {
+    _roomSub?.cancel();
+    final stream = FirebaseService.monopolioRoomStream(_roomId);
+    if (stream == null) return;
+    _roomSub = stream.listen(_onRoomUpdate);
+  }
+
+  void _onRoomUpdate(DocumentSnapshot<Map<String, dynamic>> snap) {
+    if (!snap.exists || !mounted) return;
+    final data = snap.data()!;
+    final estado = data['estado'] as String? ?? 'lobby';
+
+    if (estado == 'lobby') {
+      // Actualizar lista del lobby
+      final uids = List<String>.from(data['jugadoresUids'] ?? []);
+      final info = (data['jugadoresInfo'] as Map<String, dynamic>?) ?? {};
+      if (mounted) setState(() {
+        _lobbyJugadores = uids.map((u) {
+          final j = (info[u] as Map<String, dynamic>?) ?? {};
+          return {'uid': u, 'apodo': j['apodo'] ?? 'Jugadora', 'avatarIndex': j['avatarIndex'] ?? 0};
+        }).toList();
+      });
+
+    } else if (estado == 'jugando') {
+      final gs = data['gameState'] as Map<String, dynamic>?;
+      if (gs == null) return;
+      if (!_juegoIniciado) {
+        // Primera vez: inicializar juego desde estado remoto
+        _cargarEstadoOnline(gs);
+      } else if (_juegoIniciado && _jugActual.uid != _miUid) {
+        // Es el turno de otra jugadora: aplicar su estado
+        _cargarEstadoOnline(gs);
+      }
+      // Si es mi turno, ignoro — yo controlo el estado local
+    }
+  }
+
+  // ── Online: host inicia juego ────────────────────────────────────
+  Future<void> _iniciarJuegoOnline() async {
+    if (_lobbyJugadores.length < 2) return;
+    setState(() => _cargandoOnline = true);
+    final n = _lobbyJugadores.length;
+    _jugadores = List.generate(n, (i) {
+      final info = _lobbyJugadores[i];
+      return MJugador(
+        id: i,
+        nombre: info['apodo'] ?? 'Jugadora ${i + 1}',
+        emoji: _avatares[i],
+        color: _coloresJ[i],
+        esIA: false,
+        uid: info['uid'],
+      );
+    });
+    _props = List.generate(20, (i) =>
+      _tablero[i].tipo == TEspacio.propiedad ? MProp(i) : null);
+    _turnoIdx         = 0;
+    _tiro             = false;
+    _esperandoAccion  = false;
+    _terminado        = false;
+    _log              = ['¡Monopolio LSF comenzó! ${_jugadores[0].nombre} va primero.'];
+    await FirebaseService.startMonopolioRoom(_roomId, _serializarEstado());
+    if (mounted) setState(() { _juegoIniciado = true; _enLobby = false; _cargandoOnline = false; });
+  }
+
+  // ── Online: serializar estado ────────────────────────────────────
+  Map<String, dynamic> _serializarEstado() => {
+    'jugadores': _jugadores.map((j) => {
+      'id': j.id, 'nombre': j.nombre, 'emoji': j.emoji,
+      'colorIdx': _coloresJ.indexOf(j.color),
+      'uid': j.uid ?? '',
+      'pos': j.pos, 'dinero': j.dinero,
+      'preso': j.preso, 'turnoPreso': j.turnoPreso, 'eliminado': j.eliminado,
+    }).toList(),
+    'props': _props.where((p) => p != null).map((p) => {
+      'spaceIdx': p!.spaceIdx, 'dueno': p.dueno, 'casas': p.casas,
+    }).toList(),
+    'turnoIdx':        _turnoIdx,
+    'esperandoAccion': _esperandoAccion,
+    'tiro':            _tiro,
+    'd1': _d1, 'd2': _d2,
+    'cartaActiva': _cartaActiva == null ? null : {
+      'e': _cartaActiva!.$1, 't': _cartaActiva!.$2,
+      'tx': _cartaActiva!.$3, 'm': _cartaActiva!.$4,
+    },
+    'log': _log,
+  };
+
+  // ── Online: cargar estado remoto ─────────────────────────────────
+  void _cargarEstadoOnline(Map<String, dynamic> gs) {
+    final jugsData = (gs['jugadores'] as List?)?.cast<Map<String, dynamic>>() ?? [];
+    final jugadores = jugsData.map((j) {
+      final colorIdx = (j['colorIdx'] as int? ?? 0).clamp(0, _coloresJ.length - 1);
+      final jug = MJugador(
+        id: j['id'] as int? ?? 0,
+        nombre: j['nombre'] as String? ?? 'Jugadora',
+        emoji: j['emoji'] as String? ?? '👸',
+        color: _coloresJ[colorIdx],
+        esIA: false,
+        uid: j['uid'] as String?,
+      );
+      jug.pos        = j['pos'] as int? ?? 0;
+      jug.dinero     = j['dinero'] as int? ?? 1500;
+      jug.preso      = j['preso'] as bool? ?? false;
+      jug.turnoPreso = j['turnoPreso'] as int? ?? 0;
+      jug.eliminado  = j['eliminado'] as bool? ?? false;
+      return jug;
+    }).toList();
+
+    final props = List.generate(20, (i) =>
+      _tablero[i].tipo == TEspacio.propiedad ? MProp(i) : null);
+    for (final p in ((gs['props'] as List?) ?? []).cast<Map<String, dynamic>>()) {
+      final idx = p['spaceIdx'] as int? ?? -1;
+      if (idx >= 0 && idx < 20 && props[idx] != null) {
+        props[idx]!.dueno = p['dueno'] as int? ?? -1;
+        props[idx]!.casas = p['casas'] as int? ?? 0;
+      }
+    }
+
+    final ca = gs['cartaActiva'] as Map<String, dynamic>?;
+    (String, String, String, int)? carta;
+    if (ca != null) carta = (ca['e'] as String, ca['t'] as String, ca['tx'] as String, ca['m'] as int);
+
+    if (mounted) setState(() {
+      _jugadores       = jugadores;
+      _props           = props;
+      _turnoIdx        = gs['turnoIdx'] as int? ?? 0;
+      _esperandoAccion = gs['esperandoAccion'] as bool? ?? false;
+      _tiro            = gs['tiro'] as bool? ?? false;
+      _d1              = gs['d1'] as int? ?? 0;
+      _d2              = gs['d2'] as int? ?? 0;
+      _cartaActiva     = carta;
+      _log             = List<String>.from(gs['log'] ?? []);
+      _juegoIniciado   = true;
+      _enLobby         = false;
+      _terminado       = _jugadores.where((j) => !j.eliminado).length <= 1 && jugadores.length > 1;
+    });
+  }
+
+  // ── Online: empujar estado a Firestore ───────────────────────────
+  Future<void> _pushEstadoOnline() async {
+    if (!_modoOnline || !_juegoIniciado) return;
+    await FirebaseService.updateMonopolioState(_roomId, _serializarEstado());
+  }
 
   // ── Init ─────────────────────────────────────────────────────────
   void _iniciarJuego(int n) {
@@ -153,7 +361,7 @@ class _PantallaMonopolioState extends State<PantallaMonopolio> {
 
   // ── Tirar dados ──────────────────────────────────────────────────
   void _tirarDados() {
-    if (_tiro || _esperandoAccion) return;
+    if (_tiro || _esperandoAccion || !_esMiTurno) return;
     _d1 = _rand.nextInt(6) + 1;
     _d2 = _rand.nextInt(6) + 1;
     final pasos = _d1 + _d2;
@@ -286,7 +494,6 @@ class _PantallaMonopolioState extends State<PantallaMonopolio> {
       _esperandoAccion = false;
       _cartaActiva = null;
     });
-    // Avanzar al siguiente jugador activo
     int siguiente = (_turnoIdx + 1) % _jugadores.length;
     int intentos = 0;
     while (_jugadores[siguiente].eliminado && intentos < _jugadores.length) {
@@ -294,8 +501,10 @@ class _PantallaMonopolioState extends State<PantallaMonopolio> {
       intentos++;
     }
     setState(() => _turnoIdx = siguiente);
-    // Si el siguiente es IA, auto-jugar después de un momento
-    if (_jugadores[siguiente].esIA && !_terminado) {
+    if (_modoOnline) {
+      // Empujar estado al finalizar cada turno
+      _pushEstadoOnline();
+    } else if (_jugadores[siguiente].esIA && !_terminado) {
       Future.delayed(const Duration(milliseconds: 800), _turnoIA);
     }
   }
@@ -319,6 +528,7 @@ class _PantallaMonopolioState extends State<PantallaMonopolio> {
 
   // ── Acciones del jugador humano ──────────────────────────────────
   void _accionComprar() {
+    if (!_esMiTurno) return;
     final prop = _props[_jugActual.pos];
     if (prop == null) return;
     _comprar(_jugActual, prop);
@@ -327,11 +537,13 @@ class _PantallaMonopolioState extends State<PantallaMonopolio> {
   }
 
   void _accionPasar() {
+    if (!_esMiTurno) return;
     setState(() { _esperandoAccion = false; _cartaActiva = null; });
     _finTurno();
   }
 
   void _accionConstruir() {
+    if (!_esMiTurno) return;
     final prop = _props[_jugActual.pos];
     if (prop == null || prop.dueno != _jugActual.id || prop.maxCasas) return;
     if (_jugActual.dinero < prop.costoCasa) return;
@@ -340,6 +552,7 @@ class _PantallaMonopolioState extends State<PantallaMonopolio> {
     _addLog('${_jugActual.emoji} construye casa en ${_tablero[_jugActual.pos].nombre} 🏠');
     SoundPlayer.compra();
     setState(() {});
+    _pushEstadoOnline();
   }
 
   // ═══════════════════════════════════════════════════════════════════
@@ -347,8 +560,9 @@ class _PantallaMonopolioState extends State<PantallaMonopolio> {
   // ═══════════════════════════════════════════════════════════════════
   @override
   Widget build(BuildContext context) {
+    if (_enLobby)       return _buildLobby();
     if (!_juegoIniciado) return _buildConfiguracion();
-    if (_terminado) return _buildResultados();
+    if (_terminado)     return _buildResultados();
     return _buildJuego();
   }
 
@@ -420,6 +634,7 @@ class _PantallaMonopolioState extends State<PantallaMonopolio> {
                 ]),
               ),
               const Spacer(),
+              // ── Local ──────────────────────────────────────────
               SizedBox(width: double.infinity, child: ElevatedButton(
                 onPressed: () => _iniciarJuego(_numJugadores),
                 style: ElevatedButton.styleFrom(
@@ -427,9 +642,250 @@ class _PantallaMonopolioState extends State<PantallaMonopolio> {
                   padding: const EdgeInsets.symmetric(vertical: 18),
                   shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
                 ),
-                child: const Text('♟️ INICIAR JUEGO',
-                  style: TextStyle(color: Colors.white, fontSize: 17, fontWeight: FontWeight.w900)),
+                child: const Text('♟️ JUGAR EN ESTE CELULAR',
+                  style: TextStyle(color: Colors.white, fontSize: 16, fontWeight: FontWeight.w900)),
               )),
+              const SizedBox(height: 16),
+              // ── Online ─────────────────────────────────────────
+              Row(children: const [
+                Expanded(child: Divider(color: Colors.white12)),
+                Padding(
+                  padding: EdgeInsets.symmetric(horizontal: 10),
+                  child: Text('o juega con amigas a distancia',
+                    style: TextStyle(color: Colors.white38, fontSize: 12)),
+                ),
+                Expanded(child: Divider(color: Colors.white12)),
+              ]),
+              const SizedBox(height: 16),
+              if (_errorOnline.isNotEmpty)
+                Padding(
+                  padding: const EdgeInsets.only(bottom: 10),
+                  child: Text(_errorOnline,
+                    style: const TextStyle(color: Colors.redAccent, fontSize: 12),
+                    textAlign: TextAlign.center),
+                ),
+              Row(children: [
+                Expanded(child: ElevatedButton.icon(
+                  onPressed: _cargandoOnline ? null : _crearSalaOnline,
+                  icon: _cargandoOnline
+                    ? const SizedBox(width: 16, height: 16,
+                        child: CircularProgressIndicator(strokeWidth: 2, color: Colors.white))
+                    : const Text('🌐', style: TextStyle(fontSize: 16)),
+                  label: const Text('Crear sala',
+                    style: TextStyle(color: Colors.white, fontWeight: FontWeight.w700)),
+                  style: ElevatedButton.styleFrom(
+                    backgroundColor: const Color(0xFF1565C0),
+                    padding: const EdgeInsets.symmetric(vertical: 14),
+                    shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
+                  ),
+                )),
+                const SizedBox(width: 10),
+                Expanded(child: OutlinedButton.icon(
+                  onPressed: _cargandoOnline ? null : () => _mostrarDialogoUnirse(),
+                  icon: const Text('🔑', style: TextStyle(fontSize: 16)),
+                  label: const Text('Unirse',
+                    style: TextStyle(color: Colors.white, fontWeight: FontWeight.w700)),
+                  style: OutlinedButton.styleFrom(
+                    side: const BorderSide(color: Color(0xFF1565C0)),
+                    padding: const EdgeInsets.symmetric(vertical: 14),
+                    shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
+                  ),
+                )),
+              ]),
+              const SizedBox(height: 8),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+
+  void _mostrarDialogoUnirse() {
+    _codigoCtrl.clear();
+    _errorOnline = '';
+    showDialog(
+      context: context,
+      builder: (_) => AlertDialog(
+        backgroundColor: AppColors.fondoCard,
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
+        title: const Text('🔑 Unirse a sala', style: TextStyle(color: Colors.white, fontWeight: FontWeight.w900)),
+        content: Column(mainAxisSize: MainAxisSize.min, children: [
+          const Text('Pide el código a la anfitriona y escríbelo aquí:',
+            style: TextStyle(color: Colors.white60, fontSize: 13)),
+          const SizedBox(height: 16),
+          TextField(
+            controller: _codigoCtrl,
+            textCapitalization: TextCapitalization.characters,
+            maxLength: 6,
+            style: const TextStyle(color: Colors.white, fontSize: 22, fontWeight: FontWeight.w900, letterSpacing: 6),
+            textAlign: TextAlign.center,
+            decoration: InputDecoration(
+              counterText: '',
+              hintText: 'XXXXXX',
+              hintStyle: const TextStyle(color: Colors.white24, letterSpacing: 6),
+              filled: true,
+              fillColor: Colors.white.withValues(alpha: 0.08),
+              border: OutlineInputBorder(borderRadius: BorderRadius.circular(12), borderSide: BorderSide.none),
+            ),
+          ),
+        ]),
+        actions: [
+          TextButton(onPressed: () => Navigator.pop(context),
+            child: const Text('Cancelar', style: TextStyle(color: Colors.white54))),
+          ElevatedButton(
+            style: ElevatedButton.styleFrom(backgroundColor: const Color(0xFF1565C0)),
+            onPressed: () {
+              Navigator.pop(context);
+              _unirseASala(_codigoCtrl.text);
+            },
+            child: const Text('Entrar →', style: TextStyle(color: Colors.white, fontWeight: FontWeight.w900)),
+          ),
+        ],
+      ),
+    );
+  }
+
+  // ── Lobby online ──────────────────────────────────────────────────
+  Widget _buildLobby() {
+    final puedeIniciar = _soyHost && _lobbyJugadores.length >= 2;
+    const avataresSocial = ['👸', '🦊', '⭐', '🐲'];
+    return Scaffold(
+      backgroundColor: AppColors.fondoOscuro,
+      body: SafeArea(
+        child: Padding(
+          padding: const EdgeInsets.all(24),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              IconButton(
+                icon: const Icon(Icons.arrow_back, color: Colors.white70),
+                onPressed: () {
+                  _roomSub?.cancel();
+                  setState(() { _enLobby = false; _modoOnline = false; _errorOnline = ''; });
+                },
+              ),
+              const SizedBox(height: 8),
+              const Center(child: Text('🌐', style: TextStyle(fontSize: 48))),
+              const SizedBox(height: 8),
+              const Center(child: Text('Sala en línea',
+                style: TextStyle(color: Colors.white, fontSize: 22, fontWeight: FontWeight.w900))),
+              const Center(child: Text('Comparte el código con tus amigas',
+                style: TextStyle(color: Colors.white54, fontSize: 13))),
+              const SizedBox(height: 28),
+              // Código de sala
+              GestureDetector(
+                onTap: () {
+                  Clipboard.setData(ClipboardData(text: _roomCodigo));
+                  ScaffoldMessenger.of(context).showSnackBar(const SnackBar(
+                    content: Text('📋 Código copiado'),
+                    duration: Duration(seconds: 2),
+                    behavior: SnackBarBehavior.floating,
+                  ));
+                },
+                child: Container(
+                  width: double.infinity,
+                  padding: const EdgeInsets.symmetric(vertical: 20),
+                  decoration: BoxDecoration(
+                    gradient: const LinearGradient(colors: [Color(0xFF1565C0), Color(0xFF0D47A1)]),
+                    borderRadius: BorderRadius.circular(18),
+                    boxShadow: [BoxShadow(color: const Color(0xFF1565C0).withValues(alpha: 0.4), blurRadius: 16, offset: const Offset(0, 4))],
+                  ),
+                  child: Column(children: [
+                    Text(_roomCodigo,
+                      style: const TextStyle(color: Colors.white, fontSize: 36,
+                        fontWeight: FontWeight.w900, letterSpacing: 10)),
+                    const SizedBox(height: 4),
+                    const Text('Toca para copiar  📋',
+                      style: TextStyle(color: Colors.white60, fontSize: 12)),
+                  ]),
+                ),
+              ),
+              const SizedBox(height: 24),
+              Text('Jugadoras conectadas (${_lobbyJugadores.length}/4)',
+                style: const TextStyle(color: Colors.white, fontWeight: FontWeight.w700, fontSize: 15)),
+              const SizedBox(height: 12),
+              Expanded(
+                child: ListView.builder(
+                  itemCount: 4,
+                  itemBuilder: (_, i) {
+                    final llena = i < _lobbyJugadores.length;
+                    final j = llena ? _lobbyJugadores[i] : null;
+                    final esMi = j != null && j['uid'] == _miUid;
+                    return AnimatedContainer(
+                      duration: const Duration(milliseconds: 300),
+                      margin: const EdgeInsets.only(bottom: 8),
+                      padding: const EdgeInsets.all(14),
+                      decoration: BoxDecoration(
+                        color: llena
+                          ? _coloresJ[i].withValues(alpha: 0.15)
+                          : Colors.white.withValues(alpha: 0.04),
+                        borderRadius: BorderRadius.circular(14),
+                        border: Border.all(
+                          color: llena ? _coloresJ[i].withValues(alpha: 0.5) : Colors.white12),
+                      ),
+                      child: Row(children: [
+                        Text(llena ? avataresSocial[i] : '⭕',
+                          style: const TextStyle(fontSize: 24)),
+                        const SizedBox(width: 12),
+                        Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+                          Text(
+                            llena ? (j!['apodo'] as String) : 'Esperando...',
+                            style: TextStyle(
+                              color: llena ? Colors.white : Colors.white30,
+                              fontWeight: FontWeight.w700, fontSize: 14),
+                          ),
+                          if (esMi) const Text('(tú)', style: TextStyle(color: Colors.white38, fontSize: 11)),
+                        ])),
+                        if (llena) Icon(Icons.check_circle, color: _coloresJ[i], size: 20),
+                      ]),
+                    );
+                  },
+                ),
+              ),
+              if (_errorOnline.isNotEmpty)
+                Padding(
+                  padding: const EdgeInsets.only(bottom: 8),
+                  child: Text(_errorOnline, style: const TextStyle(color: Colors.redAccent, fontSize: 12)),
+                ),
+              if (_soyHost) ...[
+                Text(
+                  puedeIniciar
+                    ? '✅ Listo para iniciar (${_lobbyJugadores.length} jugadoras)'
+                    : '⏳ Esperando más jugadoras (mínimo 2)',
+                  style: TextStyle(
+                    color: puedeIniciar ? const Color(0xFF4CAF50) : Colors.white38,
+                    fontSize: 12),
+                  textAlign: TextAlign.center,
+                ),
+                const SizedBox(height: 10),
+                SizedBox(width: double.infinity, child: ElevatedButton(
+                  onPressed: (puedeIniciar && !_cargandoOnline) ? _iniciarJuegoOnline : null,
+                  style: ElevatedButton.styleFrom(
+                    backgroundColor: puedeIniciar ? AppColors.neonMorado : Colors.white12,
+                    padding: const EdgeInsets.symmetric(vertical: 18),
+                    shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+                  ),
+                  child: _cargandoOnline
+                    ? const CircularProgressIndicator(color: Colors.white, strokeWidth: 2)
+                    : const Text('♟️ INICIAR PARTIDA',
+                        style: TextStyle(color: Colors.white, fontSize: 17, fontWeight: FontWeight.w900)),
+                )),
+              ] else
+                Container(
+                  padding: const EdgeInsets.all(16),
+                  decoration: BoxDecoration(
+                    color: AppColors.fondoCard,
+                    borderRadius: BorderRadius.circular(14),
+                    border: Border.all(color: Colors.white10),
+                  ),
+                  child: const Row(mainAxisAlignment: MainAxisAlignment.center, children: [
+                    SizedBox(width: 16, height: 16,
+                      child: CircularProgressIndicator(strokeWidth: 2, color: Colors.white54)),
+                    SizedBox(width: 12),
+                    Text('Esperando que la anfitriona inicie...',
+                      style: TextStyle(color: Colors.white54, fontSize: 13)),
+                  ]),
+                ),
             ],
           ),
         ),
@@ -450,9 +906,10 @@ class _PantallaMonopolioState extends State<PantallaMonopolio> {
             child: Column(children: [
               _buildEspacioActual(),
               const SizedBox(height: 12),
-              if (_cartaActiva != null) _buildCarta(),
-              if (!_esperandoAccion) _buildBotonesTurno(),
-              if (_esperandoAccion && _cartaActiva == null) _buildBotonesCompra(),
+              if (_modoOnline && !_esMiTurno) _buildEsperandoTurno(),
+              if (_cartaActiva != null && _esMiTurno) _buildCarta(),
+              if (!_esperandoAccion && _esMiTurno) _buildBotonesTurno(),
+              if (_esperandoAccion && _cartaActiva == null && _esMiTurno) _buildBotonesCompra(),
               const SizedBox(height: 12),
               _buildLog(),
             ]),
@@ -720,6 +1177,26 @@ class _PantallaMonopolioState extends State<PantallaMonopolio> {
         child: const Text('Pasar', style: TextStyle(color: Colors.white60)),
       )),
     ]);
+  }
+
+  Widget _buildEsperandoTurno() {
+    final j = _jugActual;
+    return Container(
+      margin: const EdgeInsets.only(bottom: 12),
+      padding: const EdgeInsets.all(16),
+      decoration: BoxDecoration(
+        color: j.color.withValues(alpha: 0.12),
+        borderRadius: BorderRadius.circular(14),
+        border: Border.all(color: j.color.withValues(alpha: 0.4)),
+      ),
+      child: Row(mainAxisAlignment: MainAxisAlignment.center, children: [
+        const SizedBox(width: 18, height: 18,
+          child: CircularProgressIndicator(strokeWidth: 2, color: Colors.white54)),
+        const SizedBox(width: 12),
+        Text('Turno de ${j.emoji} ${j.nombre}...',
+          style: const TextStyle(color: Colors.white70, fontSize: 14, fontWeight: FontWeight.w600)),
+      ]),
+    );
   }
 
   Widget _buildLog() {
