@@ -49,7 +49,7 @@ class _PantallaSalaMultiState extends State<PantallaSalaMulti>
 
   // ── Juego (Imperio Builder) ──────────────────────────────────
   List<IBNegocio> _negocios  = crearNegocios();
-  double _dinero     = 0;
+  double _dinero     = 50.0;
   double _totalGanado = 0;
   Timer? _ticker;
   Timer? _syncTimer;

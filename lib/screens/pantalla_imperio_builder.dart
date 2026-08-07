@@ -1349,10 +1349,12 @@ class _PantallaImperioBuilderState extends State<PantallaImperioBuilder>
   //  HELPERS
   // ─────────────────────────────────────────
   String _formatNum(double n) {
-    if (n >= 1000000000) return '\$${(n / 1000000000).toStringAsFixed(1)}B';
-    if (n >= 1000000)    return '\$${(n / 1000000).toStringAsFixed(2)}M';
-    if (n >= 1000)       return '\$${(n / 1000).toStringAsFixed(1)}K';
-    return '\$${n.toStringAsFixed(n.abs() < 10 ? 2 : 0)}';
+    final s = n < 0 ? '-' : '';
+    final a = n.abs();
+    if (a >= 1000000000) return '$s\$${(a / 1000000000).toStringAsFixed(1)}B';
+    if (a >= 1000000)    return '$s\$${(a / 1000000).toStringAsFixed(2)}M';
+    if (a >= 1000)       return '$s\$${(a / 1000).toStringAsFixed(1)}K';
+    return '$s\$${a.toStringAsFixed(a < 10 ? 2 : 0)}';
   }
 
   Color _categoriaColor(String cat) => switch (cat) {

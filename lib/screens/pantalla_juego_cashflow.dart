@@ -292,26 +292,30 @@ const _suenos = [
 //  TABLERO — ESPACIOS
 // ═══════════════════════════════════════════════════════════════
 const _tableroRuedaRata = [
-  EspacioTablero.payday,
-  EspacioTablero.pequenoNegocio,
-  EspacioTablero.pasivo,
-  EspacioTablero.pequenoNegocio,
-  EspacioTablero.payday,
-  EspacioTablero.pasivo,
-  EspacioTablero.granNegocio,
-  EspacioTablero.bebe,
-  EspacioTablero.payday,
-  EspacioTablero.pequenoNegocio,
-  EspacioTablero.reduccion,
-  EspacioTablero.pasivo,
-  EspacioTablero.caridad,
-  EspacioTablero.pequenoNegocio,
-  EspacioTablero.payday,
-  EspacioTablero.mercado,
-  EspacioTablero.pasivo,
-  EspacioTablero.granNegocio,
-  EspacioTablero.pequenoNegocio,
-  EspacioTablero.payday,
+  EspacioTablero.payday,           // 0  — INICIO
+  EspacioTablero.pequenoNegocio,   // 1
+  EspacioTablero.pasivo,           // 2
+  EspacioTablero.pequenoNegocio,   // 3
+  EspacioTablero.mercado,          // 4
+  EspacioTablero.pasivo,           // 5
+  EspacioTablero.granNegocio,      // 6
+  EspacioTablero.pequenoNegocio,   // 7
+  EspacioTablero.payday,           // 8
+  EspacioTablero.reduccion,        // 9
+  EspacioTablero.pequenoNegocio,   // 10
+  EspacioTablero.pasivo,           // 11
+  EspacioTablero.granNegocio,      // 12
+  EspacioTablero.bebe,             // 13
+  EspacioTablero.pequenoNegocio,   // 14
+  EspacioTablero.caridad,          // 15
+  EspacioTablero.payday,           // 16
+  EspacioTablero.pasivo,           // 17
+  EspacioTablero.granNegocio,      // 18
+  EspacioTablero.pequenoNegocio,   // 19
+  EspacioTablero.mercado,          // 20
+  EspacioTablero.pasivo,           // 21
+  EspacioTablero.pequenoNegocio,   // 22
+  EspacioTablero.granNegocio,      // 23
 ];
 
 const _tableroRapida = [

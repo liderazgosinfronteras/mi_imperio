@@ -46,7 +46,7 @@ class PantallaBiblioteca extends StatelessWidget {
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           const Text('📚 Biblioteca', style: AppTextStyles.heroTitle),
-          const Text('200 libros · Resúmenes + Preguntas', style: AppTextStyles.body),
+          Text('${total} libros · Resúmenes + Preguntas', style: AppTextStyles.body),
           const SizedBox(height: 16),
           GlassCard(
             padding: const EdgeInsets.all(14),

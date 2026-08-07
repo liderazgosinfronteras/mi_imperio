@@ -116,6 +116,7 @@ class PantallaMonopolio extends StatefulWidget {
 class _PantallaMonopolioState extends State<PantallaMonopolio> {
   // ── Config ───────────────────────────────────────────────────────
   int _numJugadores = 2;
+  bool _vsRobot = true;   // true = segunda jugadora es IA; false = pasen el celular
   bool _juegoIniciado = false;
 
   // ── Estado de juego ──────────────────────────────────────────────
@@ -340,12 +341,13 @@ class _PantallaMonopolioState extends State<PantallaMonopolio> {
   }
 
   // ── Init ─────────────────────────────────────────────────────────
-  void _iniciarJuego(int n) {
+  void _iniciarJuego(int n, {bool vsRobot = false}) {
     _numJugadores = n;
     final nombres = ['Tú', 'Luna', 'Bella', 'Nala'];
+    // vsRobot: solo la segunda jugadora es IA; modo amiga/varios: todos humanos
     _jugadores = List.generate(n, (i) => MJugador(
       id: i, nombre: nombres[i], emoji: _avatares[i],
-      color: _coloresJ[i], esIA: i > 0,
+      color: _coloresJ[i], esIA: vsRobot && i == 1,
     ));
     _props = List.generate(20, (i) =>
       _tablero[i].tipo == TEspacio.propiedad ? MProp(i) : null);
@@ -373,12 +375,12 @@ class _PantallaMonopolioState extends State<PantallaMonopolio> {
   void _moverJugador(MJugador j, int pasos) {
     final anteriorPos = j.pos;
     j.pos = (j.pos + pasos) % 20;
-    // Pasar por INICIO → cobrar $200
-    if (j.pos < anteriorPos || (anteriorPos == 0 && pasos > 0)) {
-      if (j.pos != 0 || pasos > 0) {
-        j.dinero += 200;
-        _addLog('${j.emoji} ${j.nombre} pasa por INICIO → cobra \$200');
-      }
+    // Pasar por INICIO (vuelta completa) → cobrar $200
+    // Solo cuando se cruza el 0 avanzando (j.pos < anteriorPos) y no se parte desde él
+    // Aterrizaje exacto en 0 lo maneja _procesarEspacio
+    if (anteriorPos > 0 && j.pos < anteriorPos && j.pos != 0) {
+      j.dinero += 200;
+      _addLog('${j.emoji} ${j.nombre} pasa por INICIO → cobra \$200');
     }
     setState(() {});
     Future.delayed(const Duration(milliseconds: 400), () => _procesarEspacio(j));
@@ -568,6 +570,40 @@ class _PantallaMonopolioState extends State<PantallaMonopolio> {
 
   // ── Pantalla de configuración ─────────────────────────────────────
   Widget _buildConfiguracion() {
+    // Identifica la opción actualmente seleccionada
+    final bool selRobot  = _vsRobot && _numJugadores == 2;
+    final bool selAmiga  = !_vsRobot && _numJugadores == 2;
+    final bool selTres   = _numJugadores == 3;
+    final bool selCuatro = _numJugadores == 4;
+
+    Widget _opcion({
+      required String emoji, required String titulo, required String sub,
+      required bool sel, required VoidCallback onTap,
+    }) {
+      return GestureDetector(
+        onTap: onTap,
+        child: AnimatedContainer(
+          duration: const Duration(milliseconds: 200),
+          padding: const EdgeInsets.symmetric(vertical: 16, horizontal: 10),
+          decoration: BoxDecoration(
+            gradient: sel ? const LinearGradient(colors: AppColors.gradienteHero) : null,
+            color: sel ? null : AppColors.fondoCard,
+            borderRadius: BorderRadius.circular(16),
+            border: Border.all(color: sel ? AppColors.neonMorado : Colors.white12, width: sel ? 2 : 1),
+          ),
+          child: Column(children: [
+            Text(emoji, style: const TextStyle(fontSize: 26)),
+            const SizedBox(height: 6),
+            Text(titulo, style: TextStyle(color: sel ? Colors.white : Colors.white70,
+              fontWeight: FontWeight.w800, fontSize: 12), textAlign: TextAlign.center),
+            const SizedBox(height: 2),
+            Text(sub, style: TextStyle(color: sel ? Colors.white70 : Colors.white38,
+              fontSize: 10), textAlign: TextAlign.center),
+          ]),
+        ),
+      );
+    }
+
     return Scaffold(
       backgroundColor: AppColors.fondoOscuro,
       body: SafeArea(
@@ -580,70 +616,76 @@ class _PantallaMonopolioState extends State<PantallaMonopolio> {
                 icon: const Icon(Icons.arrow_back, color: Colors.white70),
                 onPressed: () => Navigator.pop(context),
               ),
-              const SizedBox(height: 16),
-              const Center(child: Text('♟️', style: TextStyle(fontSize: 72))),
-              const SizedBox(height: 12),
+              const SizedBox(height: 8),
+              const Center(child: Text('♟️', style: TextStyle(fontSize: 60))),
+              const SizedBox(height: 8),
               const Center(child: Text('Monopolio LSF',
-                style: TextStyle(color: Colors.white, fontSize: 28, fontWeight: FontWeight.w900))),
+                style: TextStyle(color: Colors.white, fontSize: 26, fontWeight: FontWeight.w900))),
               const Center(child: Text('Finanzas en el tablero',
-                style: TextStyle(color: Colors.white54, fontSize: 14))),
-              const SizedBox(height: 40),
-              const Text('¿Cuántas jugadoras?',
-                style: TextStyle(color: Colors.white, fontSize: 18, fontWeight: FontWeight.w700)),
-              const SizedBox(height: 16),
-              Row(children: [2, 3, 4].map((n) {
-                final sel = _numJugadores == n;
-                return Expanded(child: Padding(
-                  padding: const EdgeInsets.symmetric(horizontal: 6),
-                  child: GestureDetector(
-                    onTap: () => setState(() => _numJugadores = n),
-                    child: AnimatedContainer(
-                      duration: const Duration(milliseconds: 200),
-                      padding: const EdgeInsets.symmetric(vertical: 20),
-                      decoration: BoxDecoration(
-                        gradient: sel ? const LinearGradient(colors: AppColors.gradienteHero) : null,
-                        color: sel ? null : AppColors.fondoCard,
-                        borderRadius: BorderRadius.circular(16),
-                        border: Border.all(color: sel ? AppColors.neonMorado : Colors.white12),
-                      ),
-                      child: Column(children: [
-                        Text(List.generate(n, (i) => _avatares[i]).join(' '),
-                          style: const TextStyle(fontSize: 20)),
-                        const SizedBox(height: 8),
-                        Text('$n jugadoras',
-                          style: TextStyle(color: sel ? Colors.white : Colors.white60,
-                            fontWeight: FontWeight.w700, fontSize: 13)),
-                      ]),
-                    ),
-                  ),
-                ));
-              }).toList()),
-              const SizedBox(height: 16),
+                style: TextStyle(color: Colors.white54, fontSize: 13))),
+              const SizedBox(height: 28),
+              const Text('¿Cómo quieres jugar?',
+                style: TextStyle(color: Colors.white, fontSize: 16, fontWeight: FontWeight.w700)),
+              const SizedBox(height: 12),
+              // Fila 1: vs Robot | vs Amiga
+              Row(children: [
+                Expanded(child: _opcion(
+                  emoji: '🤖', titulo: 'Tú vs Robot', sub: 'Solo contra la IA',
+                  sel: selRobot,
+                  onTap: () => setState(() { _numJugadores = 2; _vsRobot = true; }),
+                )),
+                const SizedBox(width: 10),
+                Expanded(child: _opcion(
+                  emoji: '👥', titulo: 'Tú vs Amiga', sub: 'Pasan el celular',
+                  sel: selAmiga,
+                  onTap: () => setState(() { _numJugadores = 2; _vsRobot = false; }),
+                )),
+              ]),
+              const SizedBox(height: 10),
+              // Fila 2: 3 | 4 jugadoras
+              Row(children: [
+                Expanded(child: _opcion(
+                  emoji: '${_avatares[0]}${_avatares[1]}${_avatares[2]}', titulo: '3 jugadoras', sub: 'Pasan el celular',
+                  sel: selTres,
+                  onTap: () => setState(() { _numJugadores = 3; _vsRobot = false; }),
+                )),
+                const SizedBox(width: 10),
+                Expanded(child: _opcion(
+                  emoji: '${_avatares[0]}${_avatares[1]}${_avatares[2]}${_avatares[3]}', titulo: '4 jugadoras', sub: 'Pasan el celular',
+                  sel: selCuatro,
+                  onTap: () => setState(() { _numJugadores = 4; _vsRobot = false; }),
+                )),
+              ]),
+              const SizedBox(height: 14),
               Container(
-                padding: const EdgeInsets.all(16),
+                padding: const EdgeInsets.all(14),
                 decoration: BoxDecoration(
                   color: AppColors.fondoCard,
                   borderRadius: BorderRadius.circular(14),
                   border: Border.all(color: Colors.white10),
                 ),
-                child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: const [
-                  Text('📋 Cómo jugar:', style: TextStyle(color: Colors.white, fontWeight: FontWeight.w700)),
-                  SizedBox(height: 8),
-                  Text('• Pasa el celular entre jugadoras\n• Tira los dados y muévete en el tablero\n• Compra negocios y cobra renta\n• ¡La última jugadora sin quebrar gana!',
-                    style: TextStyle(color: Colors.white60, fontSize: 13, height: 1.6)),
+                child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+                  const Text('📋 Cómo jugar:', style: TextStyle(color: Colors.white, fontWeight: FontWeight.w700, fontSize: 13)),
+                  const SizedBox(height: 6),
+                  Text(
+                    selRobot
+                      ? '• Tú juegas contra Luna (Robot)\n• La IA hace sus movimientos automáticamente\n• Compra negocios y cobra renta\n• ¡Quien quiebre primero, pierde!'
+                      : '• Pasen el celular en cada turno\n• Tira los dados y muévete en el tablero\n• Compra negocios y cobra renta\n• ¡La última jugadora sin quebrar gana!',
+                    style: const TextStyle(color: Colors.white60, fontSize: 12, height: 1.6)),
                 ]),
               ),
               const Spacer(),
               // ── Local ──────────────────────────────────────────
               SizedBox(width: double.infinity, child: ElevatedButton(
-                onPressed: () => _iniciarJuego(_numJugadores),
+                onPressed: () => _iniciarJuego(_numJugadores, vsRobot: _vsRobot),
                 style: ElevatedButton.styleFrom(
                   backgroundColor: AppColors.neonMorado,
                   padding: const EdgeInsets.symmetric(vertical: 18),
                   shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
                 ),
-                child: const Text('♟️ JUGAR EN ESTE CELULAR',
-                  style: TextStyle(color: Colors.white, fontSize: 16, fontWeight: FontWeight.w900)),
+                child: Text(
+                  selRobot ? '🤖 JUGAR VS ROBOT' : '♟️ JUGAR (${_numJugadores == 2 ? "2" : _numJugadores.toString()} JUGADORAS)',
+                  style: const TextStyle(color: Colors.white, fontSize: 16, fontWeight: FontWeight.w900)),
               )),
               const SizedBox(height: 16),
               // ── Online ─────────────────────────────────────────
