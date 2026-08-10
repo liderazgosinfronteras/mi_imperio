@@ -184,7 +184,7 @@ class _PantallaSalaMultiState extends State<PantallaSalaMulti>
     _ticker = Timer.periodic(const Duration(milliseconds: 100), (_) {
       if (!mounted) return;
       final ingSeg = _negocios.fold(0.0, (s, n) => s + n.ingresoActual) * _bonusMult;
-      final ganado = ingSeg * 0.1;
+      final ganado = ingSeg * 0.5;
       setState(() {
         _dinero      += ganado;
         _totalGanado += ganado;

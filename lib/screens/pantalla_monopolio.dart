@@ -1028,45 +1028,128 @@ class _PantallaMonopolioState extends State<PantallaMonopolio> {
   }
 
   Widget _buildTablero() {
-    return Container(
-      height: 72,
-      color: const Color(0xFF0D0E1A),
-      child: ListView.builder(
-        scrollDirection: Axis.horizontal,
-        padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 8),
-        itemCount: 20,
-        itemBuilder: (_, i) {
-          final esp = _tablero[i];
-          final jugAqui = _jugadores.where((j) => j.pos == i && !j.eliminado).toList();
-          final prop = _props[i];
-          final esActual = _jugActual.pos == i;
-          return AnimatedContainer(
-            duration: const Duration(milliseconds: 200),
-            width: 52,
-            margin: const EdgeInsets.symmetric(horizontal: 2),
-            decoration: BoxDecoration(
-              color: esActual
-                ? _jugActual.color.withValues(alpha: 0.3)
-                : (prop?.dueno != null && prop!.dueno >= 0)
-                  ? _jugadores[prop.dueno].color.withValues(alpha: 0.15)
-                  : Colors.white.withValues(alpha: 0.04),
-              borderRadius: BorderRadius.circular(10),
-              border: Border.all(
-                color: esActual
-                  ? _jugActual.color
-                  : esp.color ?? Colors.white12,
-                width: esActual ? 2 : 1,
+    return LayoutBuilder(builder: (context, constraints) {
+      final boardSize = min(constraints.maxWidth.toDouble(), 360.0);
+      final cs = boardSize / 6;
+      return Center(
+        child: SizedBox(
+          width: boardSize,
+          height: boardSize,
+          child: Stack(children: [
+            // Board background
+            Container(
+              width: boardSize, height: boardSize,
+              decoration: BoxDecoration(
+                color: const Color(0xFF071320),
+                border: Border.all(color: Colors.white12),
               ),
             ),
-            child: Column(mainAxisAlignment: MainAxisAlignment.center, children: [
-              Text(esp.emoji, style: const TextStyle(fontSize: 16)),
-              if (jugAqui.isNotEmpty)
-                Text(jugAqui.map((j) => j.emoji).join(''), style: const TextStyle(fontSize: 8)),
-              if (prop != null && prop.casas > 0)
-                Text('🏠' * prop.casas, style: const TextStyle(fontSize: 7)),
-            ]),
-          );
-        },
+            // Center panel
+            Positioned(
+              left: cs, top: cs,
+              child: _buildCentroTablero(cs),
+            ),
+            // Bottom row: pos 0–5 (left → right)
+            for (int i = 0; i < 6; i++)
+              Positioned(left: i * cs, top: 5 * cs,
+                child: _buildCasilla(i, cs)),
+            // Right col: pos 6–9 (bottom → top)
+            for (int i = 0; i < 4; i++)
+              Positioned(left: 5 * cs, top: (4 - i) * cs,
+                child: _buildCasilla(6 + i, cs)),
+            // Top row: pos 10–15 (right → left)
+            for (int i = 0; i < 6; i++)
+              Positioned(left: (5 - i) * cs, top: 0,
+                child: _buildCasilla(10 + i, cs)),
+            // Left col: pos 16–19 (top → bottom)
+            for (int i = 0; i < 4; i++)
+              Positioned(left: 0, top: (1 + i) * cs,
+                child: _buildCasilla(16 + i, cs)),
+          ]),
+        ),
+      );
+    });
+  }
+
+  Widget _buildCasilla(int idx, double cs) {
+    final esp = _tablero[idx];
+    final jugAqui = _jugadores.where((j) => j.pos == idx && !j.eliminado).toList();
+    final prop = _props[idx];
+    final esActual = _jugActual.pos == idx;
+    final esCorner = idx == 0 || idx == 5 || idx == 10 || idx == 15;
+
+    return AnimatedContainer(
+      duration: const Duration(milliseconds: 250),
+      width: cs, height: cs,
+      decoration: BoxDecoration(
+        color: esActual
+          ? _jugActual.color.withValues(alpha: 0.35)
+          : (prop != null && prop.dueno >= 0)
+            ? _jugadores[prop.dueno].color.withValues(alpha: 0.2)
+            : Colors.transparent,
+        border: Border.all(
+          color: esActual ? _jugActual.color : (esp.color ?? Colors.white12),
+          width: esActual ? 2 : 0.5,
+        ),
+      ),
+      child: Column(mainAxisAlignment: MainAxisAlignment.center, children: [
+        Text(esp.emoji, style: TextStyle(fontSize: esCorner ? cs * 0.30 : cs * 0.26)),
+        if (jugAqui.isNotEmpty)
+          Text(jugAqui.map((j) => j.emoji).join(''),
+            style: TextStyle(fontSize: cs * 0.20)),
+        if (prop != null && prop.casas > 0)
+          Text('🏠' * prop.casas, style: TextStyle(fontSize: cs * 0.15)),
+        if (esp.tipo == TEspacio.propiedad && esp.color != null)
+          Container(
+            height: cs * 0.10,
+            width: cs * 0.65,
+            margin: const EdgeInsets.only(top: 2),
+            decoration: BoxDecoration(
+              color: esp.color,
+              borderRadius: BorderRadius.circular(2),
+            ),
+          ),
+      ]),
+    );
+  }
+
+  Widget _buildCentroTablero(double cs) {
+    final active = _jugActual;
+    return SizedBox(
+      width: cs * 4, height: cs * 4,
+      child: Container(
+        decoration: BoxDecoration(
+          gradient: const RadialGradient(
+            colors: [Color(0xFF0D1F35), Color(0xFF071320)],
+            radius: 0.9,
+          ),
+        ),
+        child: Column(mainAxisAlignment: MainAxisAlignment.center, children: [
+          const Text('♟️', style: TextStyle(fontSize: 28)),
+          const SizedBox(height: 2),
+          const Text('MONOPOLIO\nLSF', style: TextStyle(
+            color: Colors.white, fontWeight: FontWeight.w900,
+            fontSize: 12, height: 1.2, letterSpacing: 1,
+          ), textAlign: TextAlign.center),
+          const SizedBox(height: 8),
+          ..._jugadores.where((j) => !j.eliminado).take(4).map((j) =>
+            Padding(
+              padding: const EdgeInsets.symmetric(vertical: 2),
+              child: Row(mainAxisAlignment: MainAxisAlignment.center, children: [
+                Text(j.emoji, style: const TextStyle(fontSize: 13)),
+                const SizedBox(width: 4),
+                Text('\$${j.dinero}', style: TextStyle(
+                  color: active.id == j.id ? AppColors.neonAmarillo : Colors.white70,
+                  fontSize: 11,
+                  fontWeight: active.id == j.id ? FontWeight.w900 : FontWeight.w500,
+                )),
+              ]),
+            )
+          ),
+          const SizedBox(height: 6),
+          Text('Turno: ${active.emoji}',
+            style: const TextStyle(color: Colors.white54, fontSize: 10)),
+        ]),
       ),
     );
   }

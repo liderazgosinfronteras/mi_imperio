@@ -577,6 +577,56 @@ class _PantallaImperioBuilderState extends State<PantallaImperioBuilder>
     );
   }
 
+  void _confirmarReinicio() {
+    showDialog(
+      context: context,
+      builder: (_) => AlertDialog(
+        backgroundColor: AppColors.fondoCard,
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
+        title: const Text('🔄 Reiniciar Imperio', style: TextStyle(color: AppColors.textoBlanco, fontWeight: FontWeight.w900, fontSize: 18)),
+        content: Column(mainAxisSize: MainAxisSize.min, children: [
+          const Text('🏙️', style: TextStyle(fontSize: 48)),
+          const SizedBox(height: 12),
+          const Text(
+            '¿Segura que quieres reiniciar?\nPerderás todo tu progreso actual.\n\nTus prestiges se conservan.',
+            style: AppTextStyles.body,
+            textAlign: TextAlign.center,
+          ),
+          if (_prestiges > 0) ...[
+            const SizedBox(height: 8),
+            Text('⚡ Prestiges: $_prestiges (se mantienen)', style: const TextStyle(color: AppColors.neonAmarillo, fontWeight: FontWeight.w700, fontSize: 13)),
+          ],
+        ]),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context),
+            child: const Text('Cancelar', style: TextStyle(color: AppColors.textoGris)),
+          ),
+          ElevatedButton(
+            style: ElevatedButton.styleFrom(backgroundColor: Colors.redAccent),
+            onPressed: () {
+              Navigator.pop(context);
+              setState(() {
+                _negocios      = crearNegocios();
+                _dinero        = 50.0;
+                _totalGanado   = 0;
+                _hitoActual    = -1;
+                _leccionActual = null;
+                _mensajeHito   = null;
+                _efectoMult    = 1.0;
+                _semanasEfecto = 0;
+                _eventoActivo  = null;
+                _semana        = 0;
+              });
+              _guardarEstado();
+            },
+            child: const Text('🔄 Reiniciar', style: TextStyle(color: Colors.white, fontWeight: FontWeight.w900)),
+          ),
+        ],
+      ),
+    );
+  }
+
   void _mostrarOffline(double cantidad) {
     Future.delayed(const Duration(milliseconds: 800), () {
       if (!mounted) return;
@@ -891,6 +941,11 @@ class _PantallaImperioBuilderState extends State<PantallaImperioBuilder>
             Text('Semana $_semana · Simulador de negocios', style: AppTextStyles.caption),
           ]),
           const Spacer(),
+          GestureDetector(
+            onTap: _confirmarReinicio,
+            child: Container(padding: const EdgeInsets.all(8), decoration: BoxDecoration(color: AppColors.fondoCard, borderRadius: BorderRadius.circular(10)), child: const Text('🔄', style: TextStyle(fontSize: 16))),
+          ),
+          const SizedBox(width: 6),
           GestureDetector(
             onTap: _mostrarInfo,
             child: Container(padding: const EdgeInsets.all(8), decoration: BoxDecoration(color: AppColors.fondoCard, borderRadius: BorderRadius.circular(10)), child: const Text('❓', style: TextStyle(fontSize: 16))),
