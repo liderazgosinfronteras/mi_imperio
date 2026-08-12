@@ -180,16 +180,22 @@ class _PantallaSalaMultiState extends State<PantallaSalaMulti>
   }
 
   void _iniciarTicker() {
+    // El dinero ya NO se genera automáticamente.
+    // Ahora hay que tocar cada negocio para cobrar (tap-to-earn).
     _ticker?.cancel();
-    _ticker = Timer.periodic(const Duration(milliseconds: 100), (_) {
-      if (!mounted) return;
-      final ingSeg = _negocios.fold(0.0, (s, n) => s + n.ingresoActual) * _bonusMult;
-      final ganado = ingSeg * 0.5;
-      setState(() {
-        _dinero      += ganado;
-        _totalGanado += ganado;
-      });
+  }
+
+  // Cobrar ingresos de un negocio ya comprado (tap-to-earn)
+  void _cobrar(int idx) {
+    final n = _negocios[idx];
+    if (!n.comprado) return;
+    final ganado = n.ingresoActual * _bonusMult * 3;
+    setState(() {
+      _dinero      += ganado;
+      _totalGanado += ganado;
     });
+    HapticFeedback.lightImpact();
+    SoundPlayer.click();
   }
 
   void _iniciarContador() {
@@ -468,7 +474,6 @@ class _PantallaSalaMultiState extends State<PantallaSalaMulti>
   Widget _buildJuego() {
     final mins = _segundosRestantes ~/ 60;
     final secs = _segundosRestantes % 60;
-    final ingSeg = _negocios.fold(0.0, (s, n) => s + n.ingresoActual) * _bonusMult;
 
     return Stack(children: [
       Column(children: [
@@ -478,7 +483,7 @@ class _PantallaSalaMultiState extends State<PantallaSalaMulti>
 
         // ── Juego principal ───────────────────────────────────
         Expanded(child: CustomScrollView(slivers: [
-          SliverToBoxAdapter(child: _buildMiScore(ingSeg)),
+          SliverToBoxAdapter(child: _buildMiScore(0)),
           SliverPadding(
             padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
             sliver: SliverList(delegate: SliverChildBuilderDelegate(
@@ -573,6 +578,7 @@ class _PantallaSalaMultiState extends State<PantallaSalaMulti>
   }
 
   Widget _buildMiScore(double ingSeg) {
+    final negociosActivos = _negocios.where((n) => n.comprado).length;
     return Container(
       margin: const EdgeInsets.fromLTRB(14, 12, 14, 0),
       padding: const EdgeInsets.all(16),
@@ -587,7 +593,12 @@ class _PantallaSalaMultiState extends State<PantallaSalaMulti>
         Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
           Text(_miApodo, style: const TextStyle(color: Colors.white70, fontSize: 12)),
           Text('\$${_fmt(_dinero)}', style: const TextStyle(color: Colors.white, fontSize: 22, fontWeight: FontWeight.w900)),
-          Text('+\$${_fmt(ingSeg)}/seg', style: const TextStyle(color: Color(0xFF4CAF50), fontSize: 12)),
+          Text(
+            negociosActivos == 0
+              ? '👆 Compra tu primer negocio y tócalo para cobrar'
+              : '👆 Toca tus negocios para cobrar · $negociosActivos activo${negociosActivos > 1 ? "s" : ""}',
+            style: const TextStyle(color: Color(0xFF4CAF50), fontSize: 11),
+          ),
         ])),
         Column(crossAxisAlignment: CrossAxisAlignment.end, children: [
           Text('Total ganado:', style: TextStyle(color: Colors.white.withValues(alpha: 0.4), fontSize: 10)),
@@ -599,72 +610,96 @@ class _PantallaSalaMultiState extends State<PantallaSalaMulti>
 
   Widget _buildNegocioCard(int idx) {
     final n = _negocios[idx];
-    final puedeComprar = _dinero >= n.costoSiguiente;
+    final puedeSubir = _dinero >= n.costoSiguiente;
     final desbloqueado = idx == 0 || _negocios[idx - 1].comprado;
 
     if (!desbloqueado) return const SizedBox.shrink();
 
-    return GestureDetector(
-      onTap: puedeComprar ? () => _comprar(idx) : null,
-      child: AnimatedOpacity(
-        duration: const Duration(milliseconds: 300),
-        opacity: puedeComprar ? 1.0 : 0.6,
-        child: Container(
-          margin: const EdgeInsets.only(bottom: 8),
-          padding: const EdgeInsets.all(12),
-          decoration: BoxDecoration(
-            color: n.comprado ? AppColors.fondoCard : AppColors.fondoCard.withValues(alpha: 0.5),
-            borderRadius: BorderRadius.circular(14),
-            border: Border.all(
-              color: puedeComprar ? const Color(0xFF4CAF50) : Colors.white10,
-              width: puedeComprar ? 1.5 : 1,
+    final gananciaXTap = n.ingresoActual * _bonusMult * 3;
+
+    return Container(
+      margin: const EdgeInsets.only(bottom: 8),
+      height: 72,
+      child: Row(children: [
+        // ── Zona TAP TO EARN (izquierda, sólo si ya comprado) ─────
+        Expanded(
+          child: GestureDetector(
+            onTap: n.comprado ? () => _cobrar(idx) : null,
+            child: Container(
+              padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+              decoration: BoxDecoration(
+                color: n.comprado
+                    ? AppColors.fondoCard
+                    : AppColors.fondoCard.withValues(alpha: 0.45),
+                borderRadius: const BorderRadius.horizontal(left: Radius.circular(14)),
+                border: Border(
+                  top:    BorderSide(color: n.comprado ? const Color(0xFF4CAF50) : Colors.white10),
+                  bottom: BorderSide(color: n.comprado ? const Color(0xFF4CAF50) : Colors.white10),
+                  left:   BorderSide(color: n.comprado ? const Color(0xFF4CAF50) : Colors.white10),
+                ),
+              ),
+              child: Row(children: [
+                // Emoji + badge nivel
+                Stack(clipBehavior: Clip.none, children: [
+                  Container(
+                    width: 44, height: 44,
+                    decoration: BoxDecoration(
+                      color: Colors.white.withValues(alpha: 0.07),
+                      borderRadius: BorderRadius.circular(10),
+                    ),
+                    child: Center(child: Text(n.emoji, style: const TextStyle(fontSize: 24))),
+                  ),
+                  if (n.comprado) Positioned(
+                    right: -4, bottom: -4,
+                    child: Container(
+                      padding: const EdgeInsets.symmetric(horizontal: 3, vertical: 1),
+                      decoration: BoxDecoration(color: AppColors.neonMorado, borderRadius: BorderRadius.circular(5)),
+                      child: Text('Nv.${n.nivel}', style: const TextStyle(color: Colors.white, fontSize: 8, fontWeight: FontWeight.w800)),
+                    ),
+                  ),
+                ]),
+                const SizedBox(width: 10),
+                Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, mainAxisAlignment: MainAxisAlignment.center, children: [
+                  Text(n.nombre, style: const TextStyle(color: Colors.white, fontSize: 12, fontWeight: FontWeight.w700), maxLines: 1, overflow: TextOverflow.ellipsis),
+                  const SizedBox(height: 2),
+                  if (n.comprado) ...[
+                    Text('+\$${_fmt(gananciaXTap)} por TAP',
+                      style: const TextStyle(color: Color(0xFF4CAF50), fontSize: 10, fontWeight: FontWeight.w700)),
+                    const Text('👆 TOCA PARA COBRAR', style: TextStyle(color: Color(0xFF4CAF50), fontSize: 9, fontWeight: FontWeight.w900)),
+                  ] else
+                    Text('\$${_fmt(n.costoSiguiente)} para abrir', style: const TextStyle(color: Colors.white38, fontSize: 10)),
+                ])),
+              ]),
             ),
           ),
-          child: Row(children: [
-            // Emoji + nivel
-            Stack(children: [
-              Container(
-                width: 48, height: 48,
-                decoration: BoxDecoration(
-                  color: Colors.white.withValues(alpha: 0.07),
-                  borderRadius: BorderRadius.circular(12),
-                ),
-                child: Center(child: Text(n.emoji, style: const TextStyle(fontSize: 26))),
-              ),
-              if (n.comprado) Positioned(
-                right: 0, bottom: 0,
-                child: Container(
-                  padding: const EdgeInsets.symmetric(horizontal: 4, vertical: 1),
-                  decoration: BoxDecoration(color: AppColors.neonMorado, borderRadius: BorderRadius.circular(6)),
-                  child: Text('Nv.${n.nivel}', style: const TextStyle(color: Colors.white, fontSize: 9, fontWeight: FontWeight.w800)),
-                ),
-              ),
-            ]),
-            const SizedBox(width: 10),
-            // Info
-            Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-              Text(n.nombre, style: const TextStyle(color: Colors.white, fontSize: 13, fontWeight: FontWeight.w700)),
-              Text(n.categoria, style: const TextStyle(color: Colors.white38, fontSize: 10)),
-              if (n.comprado)
-                Text('+\$${_fmt(n.ingresoActual * _bonusMult)}/seg',
-                  style: const TextStyle(color: Color(0xFF4CAF50), fontSize: 11, fontWeight: FontWeight.w700)),
-            ])),
-            // Precio / upgrade
-            Column(crossAxisAlignment: CrossAxisAlignment.end, children: [
-              Text(n.comprado ? 'SUBIR' : 'COMPRAR',
-                style: TextStyle(
-                  color: puedeComprar ? const Color(0xFF4CAF50) : Colors.white38,
-                  fontSize: 10, fontWeight: FontWeight.w800,
-                )),
-              Text('\$${_fmt(n.costoSiguiente)}',
-                style: TextStyle(
-                  color: puedeComprar ? Colors.white : Colors.white38,
-                  fontSize: 13, fontWeight: FontWeight.w900,
-                )),
-            ]),
-          ]),
         ),
-      ),
+        // ── Botón ABRIR / SUBIR (derecha) ─────────────────────────
+        GestureDetector(
+          onTap: puedeSubir ? () => _comprar(idx) : null,
+          child: Container(
+            width: 68,
+            decoration: BoxDecoration(
+              color: puedeSubir
+                  ? (n.comprado ? AppColors.neonMorado : const Color(0xFF2E7D32))
+                  : Colors.white.withValues(alpha: 0.08),
+              borderRadius: const BorderRadius.horizontal(right: Radius.circular(14)),
+              border: Border(
+                top:    BorderSide(color: puedeSubir ? Colors.transparent : Colors.white10),
+                bottom: BorderSide(color: puedeSubir ? Colors.transparent : Colors.white10),
+                right:  BorderSide(color: puedeSubir ? Colors.transparent : Colors.white10),
+              ),
+            ),
+            child: Column(mainAxisAlignment: MainAxisAlignment.center, children: [
+              Text(n.comprado ? '⬆️' : '🏗️', style: const TextStyle(fontSize: 20)),
+              const SizedBox(height: 2),
+              Text(n.comprado ? 'SUBIR' : 'ABRIR',
+                style: TextStyle(color: puedeSubir ? Colors.white : Colors.white30, fontSize: 9, fontWeight: FontWeight.w900)),
+              Text('\$${_fmt(n.costoSiguiente)}',
+                style: TextStyle(color: puedeSubir ? Colors.white : Colors.white30, fontSize: 10, fontWeight: FontWeight.w900)),
+            ]),
+          ),
+        ),
+      ]),
     );
   }
 

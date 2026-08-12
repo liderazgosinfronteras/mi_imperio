@@ -607,7 +607,7 @@ class _PantallaMonopolioState extends State<PantallaMonopolio> {
     return Scaffold(
       backgroundColor: AppColors.fondoOscuro,
       body: SafeArea(
-        child: Padding(
+        child: SingleChildScrollView(
           padding: const EdgeInsets.all(24),
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
@@ -674,7 +674,7 @@ class _PantallaMonopolioState extends State<PantallaMonopolio> {
                     style: const TextStyle(color: Colors.white60, fontSize: 12, height: 1.6)),
                 ]),
               ),
-              const Spacer(),
+              const SizedBox(height: 24),
               // ── Local ──────────────────────────────────────────
               SizedBox(width: double.infinity, child: ElevatedButton(
                 onPressed: () => _iniciarJuego(_numJugadores, vsRobot: _vsRobot),

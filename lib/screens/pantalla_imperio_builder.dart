@@ -265,7 +265,11 @@ class _PantallaImperioBuilderState extends State<PantallaImperioBuilder>
   @override
   void didChangeAppLifecycleState(AppLifecycleState state) {
     if (state == AppLifecycleState.paused || state == AppLifecycleState.inactive) {
+      _ticker?.cancel();
+      _timerGuardado?.cancel();
       _guardarEstado();
+    } else if (state == AppLifecycleState.resumed) {
+      _iniciarTicker();
     }
   }
 
@@ -552,16 +556,23 @@ class _PantallaImperioBuilderState extends State<PantallaImperioBuilder>
               Navigator.pop(context);
               setState(() {
                 _prestiges++;
-                _negocios    = crearNegocios();
-                _dinero      = 50.0;
-                _totalGanado = 0;
-                _hitoActual  = -1;
-                _leccionActual = null;
-                _mensajeHito   = null;
-                _efectoMult    = 1.0;
-                _semanasEfecto = 0;
-                _eventoActivo  = null;
+                _negocios                = crearNegocios();
+                _dinero                  = 50.0;
+                _totalGanado             = 0;
+                _hitoActual              = -1;
+                _leccionActual           = null;
+                _mensajeHito             = null;
+                _efectoMult              = 1.0;
+                _semanasEfecto           = 0;
+                _eventoActivo            = null;
+                _decisionTomada          = null;
+                _mostrarResultadoDecision = false;
+                _semana                  = 0;
+                _ingresoUltimaSemana     = 0;
+                _gastosUltimaSemana      = 0;
+                _semanaAnimando          = false;
               });
+              _iniciarTicker();
               _guardarEstado();
               SoundPlayer.victoria();
             },

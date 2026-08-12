@@ -197,7 +197,7 @@ class _PantallaHomeState extends State<PantallaHome> {
   void _mostrarRegistroVenta(BuildContext context, AppProvider app) {
     final montoCtrl = TextEditingController();
     final descCtrl = TextEditingController();
-    showModalBottomSheet(
+    showModalBottomSheet<void>(
       context: context,
       isScrollControlled: true,
       backgroundColor: Colors.transparent,
@@ -217,7 +217,10 @@ class _PantallaHomeState extends State<PantallaHome> {
           ));
         },
       ),
-    );
+    ).whenComplete(() {
+      montoCtrl.dispose();
+      descCtrl.dispose();
+    });
   }
 
   Widget _buildNavBar(AppProvider app, bool esDiaEducacion) {

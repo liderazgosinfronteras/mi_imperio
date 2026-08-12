@@ -350,6 +350,7 @@ class AppProvider extends ChangeNotifier {
   void dispose() {
     _simulacionTimer?.cancel();
     _vidaTimer?.cancel();
+    SoundPlayer.dispose();
     super.dispose();
   }
 
@@ -660,8 +661,10 @@ class AppProvider extends ChangeNotifier {
   }
 
   Future<void> eliminarTransaccion(String id) async {
-    final tx = _transacciones.firstWhere((t) => t.id == id, orElse: () => throw Exception('TX not found'));
-    _transacciones.removeWhere((t) => t.id == id);
+    final idx = _transacciones.indexWhere((t) => t.id == id);
+    if (idx == -1) return;
+    final tx = _transacciones[idx];
+    _transacciones.removeAt(idx);
     // Revertir fondos
     _fondoReinversion = (_fondoReinversion - tx.reinversion).clamp(0, double.infinity);
     _fondoCashflow = (_fondoCashflow - tx.cashflow).clamp(0, double.infinity);
@@ -834,7 +837,9 @@ class AppProvider extends ChangeNotifier {
   //  AVATARES ENGINE
   // ═════════════════════════════════════════
   Future<void> desbloquearAvatar(String avatarId) async {
-    final av = _avatares.firstWhere((a) => a.id == avatarId, orElse: () => throw Exception());
+    final idx = _avatares.indexWhere((a) => a.id == avatarId);
+    if (idx == -1) return;
+    final av = _avatares[idx];
     if (!av.desbloqueado && _gemas >= av.costoGemas && _nivelActual >= av.nivelRequerido) {
       _gemas -= av.costoGemas;
       av.desbloqueado = true;
