@@ -819,7 +819,7 @@ class _PantallaJuegoCashflowState extends State<PantallaJuegoCashflow>
             _cartaActual = null;
             _ofreciendoPrestamo = false;
           });
-          if (_esLibre) _escaparRueda();
+          if (_esLibre && !_enPistaRapida) _escaparRueda();
         } else {
           // Ofrecer préstamo si no puede pagar
           setState(() {
@@ -1787,7 +1787,7 @@ class _PantallaJuegoCashflowState extends State<PantallaJuegoCashflow>
         const SizedBox(height: 12),
         Row(children: [
           Expanded(child: _botonCarta('❌ Pasar', AppColors.textoGris, () {
-            setState(() { _ofreciendoPrestamo = false; _esperandoCarta = false; _cartaActual = null; _cartaParaPrestamo = null; _mensajeLog = '⏩ Pasaste la oportunidad.'; });
+            setState(() { _ofreciendoPrestamo = false; _esperandoCarta = false; _cartaActual = null; _cartaParaPrestamo = null; _mensajeLog = '⏩ Pasaste la oportunidad.'; if (_esMulti) _turnoCompleto = true; });
           })),
           const SizedBox(width: 10),
           if (_efectivo >= propio)
