@@ -23,8 +23,9 @@ class SoundPlayer {
   static Future<void> dado()     => _play(_SoundId.dado);
   static Future<void> payday()   => _play(_SoundId.payday);
   static Future<void> pasivo()   => _play(_SoundId.pasivo);
-  static Future<void> click()    => _play(_SoundId.click);
-  static Future<void> tiempo()   => _play(_SoundId.tiempo);
+  static Future<void> click()     => _play(_SoundId.click);
+  static Future<void> tiempo()    => _play(_SoundId.tiempo);
+  static Future<void> cartaGasto()=> _play(_SoundId.cartaGasto);
 
   static Future<void> _play(_SoundId id) async {
     try {
@@ -117,6 +118,13 @@ class SoundPlayer {
       duraciones:  [0.07,   0.07],
       volumen: 0.50,
     ),
+
+    // ── Carta gasto: "bum-bum-buuum" dramático descendente ───
+    _SoundId.cartaGasto: _generarMelodia(
+      frecuencias: [349.23, 293.66, 220.00, 174.61],
+      duraciones:  [0.09,   0.09,   0.09,   0.40],
+      volumen: 0.55,
+    ),
   };
 
   static Uint8List _generarMelodia({
@@ -187,4 +195,4 @@ class SoundPlayer {
   }
 }
 
-enum _SoundId { correcto, error, venta, leccion, mision, compra, nivel, victoria, dado, payday, pasivo, click, tiempo }
+enum _SoundId { correcto, error, venta, leccion, mision, compra, nivel, victoria, dado, payday, pasivo, click, tiempo, cartaGasto }

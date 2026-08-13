@@ -703,6 +703,7 @@ class _PantallaJuegoCashflowState extends State<PantallaJuegoCashflow>
 
       case EspacioTablero.pasivo:
         final c = _sacarDe(_mazoPasivo, _pasivos);
+        SoundPlayer.cartaGasto();
         setState(() { _cartaActual = c; _esperandoCarta = true; });
         _cardCtrl.forward(from: 0);
         break;
@@ -723,7 +724,7 @@ class _PantallaJuegoCashflowState extends State<PantallaJuegoCashflow>
         final donacion = (_salario * 0.10).round();
         SoundPlayer.venta();
         setState(() {
-          _efectivo = max(0, _efectivo - donacion);
+          _efectivo -= donacion;
           _caridad = true;
           _mensajeLog = '❤️ CARIDAD — Donas \$$donacion (10% de tu salario).\n¡Pero obtienes DADOS DOBLES en tu próxima tirada!';
           if (_esMulti) _turnoCompleto = true;
