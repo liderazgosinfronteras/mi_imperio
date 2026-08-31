@@ -9,6 +9,9 @@ import 'pantalla_social.dart';
 import 'pantalla_herramientas.dart';
 import 'pantalla_estadisticas.dart';
 import 'pantalla_imperio_builder.dart';
+import 'pantalla_juego_matematicas.dart';
+import 'pantalla_ranking_ninos.dart';
+import 'pantalla_academia_matematicas.dart';
 
 class PantallaJuegos extends StatelessWidget {
   const PantallaJuegos({super.key});
@@ -96,6 +99,45 @@ class PantallaJuegos extends StatelessWidget {
                 badge: 'MULTIJUGADOR',
                 onTap: () => Navigator.push(context,
                     MaterialPageRoute(builder: (_) => const PantallaSocial())),
+              ),
+              const SizedBox(height: 24),
+
+              const Text('🧒 PARA NIÑOS', style: AppTextStyles.sectionTitle),
+              const SizedBox(height: 12),
+
+              _JuegoCard(
+                emoji: '📚',
+                titulo: 'Academia Matemática',
+                descripcion: 'Primaria → Secundaria → Universidad → Puro → Superdotado',
+                color1: const Color(0xFF1A237E),
+                color2: const Color(0xFF283593),
+                badge: '5 NIVELES',
+                onTap: () => Navigator.push(context,
+                    MaterialPageRoute(builder: (_) => const PantallaAcademiaMatematicas())),
+              ),
+              const SizedBox(height: 12),
+
+              _JuegoCard(
+                emoji: '🧮',
+                titulo: 'Competencia de Mates',
+                descripcion: 'Responde rápido, gana puntos y sube en el ranking',
+                color1: const Color(0xFF0D47A1),
+                color2: const Color(0xFF1E88E5),
+                badge: 'RANKING',
+                onTap: () => Navigator.push(context,
+                    MaterialPageRoute(builder: (_) => const PantallaJuegoMatematicas())),
+              ),
+              const SizedBox(height: 12),
+
+              _JuegoCard(
+                emoji: '🏆',
+                titulo: 'Ranking de Niños',
+                descripcion: '20 jugadores compiten. ¡Juega cada día para no bajar!',
+                color1: const Color(0xFF4A148C),
+                color2: const Color(0xFF7B1FA2),
+                badge: 'COMPETENCIA',
+                onTap: () => Navigator.push(context,
+                    MaterialPageRoute(builder: (_) => const PantallaRankingNinos())),
               ),
 
               const SizedBox(height: 28),

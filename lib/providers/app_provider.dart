@@ -87,6 +87,14 @@ class AppProvider extends ChangeNotifier {
   // ── SEGURIDAD PADRES ──────────────────────
   String _pinPadres = '0000';
 
+  // ── RANKING NIÑOS ─────────────────────────
+  int _puntosRanking = 200;
+  String _ultimaFechaJuego = '';
+
+  // ── ACADEMIA MATEMÁTICAS ──────────────────
+  Map<int, int> _correctasMat = {};
+  Map<int, int> _estrellasMat = {};
+
   // ── DEBUG ─────────────────────────────────
   DateTime _fechaSimuladaDebug = DateTime.now();
 
@@ -99,6 +107,16 @@ class AppProvider extends ChangeNotifier {
   int get nivelActual => _nivelActual;
   String get avatarActual => _avatarActual;
   String get pinPadres => _pinPadres;
+  int get puntosRanking => _puntosRanking;
+  String get ultimaFechaJuego => _ultimaFechaJuego;
+  int correctasMatNivel(int n) => _correctasMat[n] ?? 0;
+  int estrellasMatNivel(int n) => _estrellasMat[n] ?? 0;
+  int get nivelMatDesbloqueado {
+    for (int i = 4; i >= 1; i--) {
+      if ((_correctasMat[i - 1] ?? 0) >= 15) return i;
+    }
+    return 0;
+  }
 
   // Tiempo restante hasta la próxima vida regenerada (vacío si vidas == 5)
   String get tiempoHastaVida {
@@ -380,6 +398,15 @@ class AppProvider extends ChangeNotifier {
     _ultimaFechaRacha = prefs.getString('ultimaFechaRacha') ?? '';
     _avatarActual = prefs.getString('avatarActual') ?? '🦋';
     _pinPadres = prefs.getString('pinPadres') ?? '0000';
+    _puntosRanking = prefs.getInt('puntosRanking') ?? 200;
+    _ultimaFechaJuego = prefs.getString('ultimaFechaJuego') ?? '';
+    _aplicarDecayDiario();
+    try {
+      final cm = jsonDecode(prefs.getString('correctasMat') ?? '{}') as Map<String, dynamic>;
+      _correctasMat = cm.map((k, v) => MapEntry(int.parse(k), (v as num).toInt()));
+      final em = jsonDecode(prefs.getString('estrellasMat') ?? '{}') as Map<String, dynamic>;
+      _estrellasMat = em.map((k, v) => MapEntry(int.parse(k), (v as num).toInt()));
+    } catch (_) {}
     _fondoReinversion = prefs.getDouble('reinversion') ?? 0.0;
     _estiloVida = prefs.getDouble('estiloVida') ?? 0.0;
     _fondoCashflow = prefs.getDouble('cashflow') ?? 0.0;
@@ -533,6 +560,10 @@ class AppProvider extends ChangeNotifier {
     await prefs.setString('ultimaFechaRacha', _ultimaFechaRacha);
     await prefs.setString('avatarActual', _avatarActual);
     await prefs.setString('pinPadres', _pinPadres);
+    await prefs.setInt('puntosRanking', _puntosRanking);
+    await prefs.setString('ultimaFechaJuego', _ultimaFechaJuego);
+    await prefs.setString('correctasMat', jsonEncode(_correctasMat.map((k, v) => MapEntry(k.toString(), v))));
+    await prefs.setString('estrellasMat', jsonEncode(_estrellasMat.map((k, v) => MapEntry(k.toString(), v))));
     await prefs.setDouble('reinversion', _fondoReinversion);
     await prefs.setDouble('estiloVida', _estiloVida);
     await prefs.setDouble('estiloVidaSemana', _estiloVidaSemana);
@@ -757,6 +788,41 @@ class AppProvider extends ChangeNotifier {
     _guardarDatos();
   }
 
+  Future<void> registrarResultadoMat(int nivel, int correctas) async {
+    _correctasMat[nivel] = (_correctasMat[nivel] ?? 0) + correctas;
+    final stars = correctas >= 9 ? 3 : correctas >= 7 ? 2 : correctas >= 5 ? 1 : 0;
+    _estrellasMat[nivel] = max(_estrellasMat[nivel] ?? 0, stars);
+    const ptsTabla = [8, 15, 25, 40, 60];
+    final pts = correctas * ptsTabla[nivel.clamp(0, 4)];
+    final gems = correctas + stars * 3;
+    _gemas += gems;
+    if (pts > 0) await agregarPuntosRanking(pts);
+    _registrarActividadHoy();
+    notifyListeners();
+    await _guardarDatos();
+  }
+
+  Future<void> agregarPuntosRanking(int pts) async {
+    _puntosRanking = (_puntosRanking + pts).clamp(0, 9999);
+    _ultimaFechaJuego = _fechaKey(DateTime.now());
+    _registrarActividadHoy();
+    notifyListeners();
+    await _guardarDatos();
+  }
+
+  void _aplicarDecayDiario() {
+    if (_ultimaFechaJuego.isEmpty) return;
+    final ultima = DateTime.tryParse(_ultimaFechaJuego);
+    if (ultima == null) return;
+    final hoy = DateTime.now();
+    final diasSin = DateTime(hoy.year, hoy.month, hoy.day)
+        .difference(DateTime(ultima.year, ultima.month, ultima.day))
+        .inDays;
+    if (diasSin > 0) {
+      _puntosRanking = (_puntosRanking - diasSin * 50).clamp(0, 9999);
+    }
+  }
+
   Future<void> agregarGemasQuiz(int cantidad) async {
     _gemas += cantidad;
     notifyListeners();
@@ -963,6 +1029,10 @@ class AppProvider extends ChangeNotifier {
     _avatares = crearAvatares();
     _onboardingCompletado = false;
     _pinPadres = pinActual; // Restaurar el PIN
+    _puntosRanking = 200;
+    _ultimaFechaJuego = '';
+    _correctasMat = {};
+    _estrellasMat = {};
     _retoProgreso = {};
     _retoModulos = null;
     notifyListeners();
