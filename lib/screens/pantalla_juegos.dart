@@ -12,6 +12,7 @@ import 'pantalla_imperio_builder.dart';
 import 'pantalla_juego_matematicas.dart';
 import 'pantalla_ranking_ninos.dart';
 import 'pantalla_academia_matematicas.dart';
+import 'pantalla_memoria_financiera.dart';
 
 class PantallaJuegos extends StatelessWidget {
   const PantallaJuegos({super.key});
@@ -126,6 +127,18 @@ class PantallaJuegos extends StatelessWidget {
                 badge: 'RANKING',
                 onTap: () => Navigator.push(context,
                     MaterialPageRoute(builder: (_) => const PantallaJuegoMatematicas())),
+              ),
+              const SizedBox(height: 12),
+
+              _JuegoCard(
+                emoji: '🧠',
+                titulo: 'Memoria Financiera',
+                descripcion: 'Empareja términos con definiciones. 3 niveles de dificultad',
+                color1: const Color(0xFF1A237E),
+                color2: const Color(0xFF3949AB),
+                badge: 'VOCABULARIO',
+                onTap: () => Navigator.push(context,
+                    MaterialPageRoute(builder: (_) => const PantallaMemoriaFinanciera())),
               ),
               const SizedBox(height: 12),
 
